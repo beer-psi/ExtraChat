@@ -3,10 +3,11 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use chrono::{Duration, TimeZone, Utc};
 use lodestone_scraper::LodestoneScraper;
+use log::warn;
 use rand::RngCore;
 use tokio::sync::RwLock;
 
-use crate::{ClientState, RegisterRequest, RegisterResponse, State, util::{hash_key, send, world_from_id}, WsStream};
+use crate::{types::protocol::FailureReason, util::{hash_key, send, world_from_id}, ClientState, RegisterRequest, RegisterResponse, State, WsStream};
 
 pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, req: RegisterRequest) -> Result<()> {
     let scraper = LodestoneScraper::default();
@@ -102,13 +103,32 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
         None => return Ok(()),
     };
 
-    let chara_info = scraper.character(character.id)
-        .await
-        .context("could not get character info")?;
-    let verified = chara_info.profile_text.contains(&challenge.challenge);
+    let chara_info = match scraper.character(character.id).await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!("missing character {}: {e:#}", character.id);
+            send(conn, number, RegisterResponse::Failure {
+                reason: FailureReason::MissingCharacter,
+            }).await?;
+            return Ok(());
+        }
+    };
 
+    let profile_text = match chara_info.profile {
+        Some(p) => p.profile_text,
+        None => {
+            send(conn, number, RegisterResponse::Failure {
+                reason: FailureReason::PrivateProfile,
+            }).await?;
+            return Ok(());
+        }
+    };
+
+    let verified = profile_text.contains(&challenge.challenge);
     if !verified {
-        send(conn, number, RegisterResponse::Failure).await?;
+        send(conn, number, RegisterResponse::Failure {
+             reason: FailureReason::ChallengeNotFound,
+        }).await?;
         return Ok(());
     }
 

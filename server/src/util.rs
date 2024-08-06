@@ -176,6 +176,14 @@ pub fn id_from_world(world: World) -> u16 {
         World::Seraph => 405,
         World::Halicarnassus => 406,
         World::Maduin => 407,
+        World::Cuchulainn => 408,
+        World::Kraken => 409,
+        World::Rafflesia => 410,
+        World::Golem => 411,
+        World::Titania => 412,
+        World::Innocence => 413,
+        World::Pixie => 414,
+        World::Tycoon => 415,
     }
 }
 
@@ -262,6 +270,14 @@ pub fn world_from_id(id: u16) -> Option<World> {
         405 => World::Seraph,
         406 => World::Halicarnassus,
         407 => World::Maduin,
+        408 => World::Cuchulainn,
+        409 => World::Kraken,
+        410 => World::Rafflesia,
+        411 => World::Golem,
+        412 => World::Titania,
+        413 => World::Innocence,
+        414 => World::Pixie,
+        415 => World::Tycoon,
         _ => return None,
     };
 

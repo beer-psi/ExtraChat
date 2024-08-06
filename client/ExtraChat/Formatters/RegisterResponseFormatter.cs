@@ -11,7 +11,7 @@ public class RegisterResponseFormatter : IMessagePackFormatter<RegisterResponse>
             writer.WriteString(Encoding.UTF8.GetBytes("failure"));
             return;
         }
-        
+
         writer.WriteMapHeader(1);
 
         var key = value switch {
@@ -29,8 +29,18 @@ public class RegisterResponseFormatter : IMessagePackFormatter<RegisterResponse>
                 writer.WriteString(Encoding.UTF8.GetBytes(challenge.Text));
                 break;
             }
-            case RegisterResponse.Failure:
+            case RegisterResponse.Failure failure: {
+                var text = failure.Reason switch {
+                    FailureReason.MissingCharacter => "missing_character",
+                    FailureReason.PrivateProfile => "private_profile",
+                    FailureReason.ChallengeNotFound => "challenge_not_found",
+                    _ => throw new ArgumentOutOfRangeException(nameof(failure.Reason)),
+                };
+
+                writer.WriteArrayHeader(1);
+                writer.WriteString(Encoding.UTF8.GetBytes(text));
                 break;
+            }
             case RegisterResponse.Success success: {
                 writer.WriteArrayHeader(1);
                 writer.WriteString(Encoding.UTF8.GetBytes(success.Key));
@@ -44,12 +54,6 @@ public class RegisterResponseFormatter : IMessagePackFormatter<RegisterResponse>
             if (reader.ReadMapHeader() != 1) {
                 throw new MessagePackSerializationException("Invalid map length");
             }
-        } else if (reader.NextMessagePackType == MessagePackType.String) {
-            if (reader.ReadString() != "failure") {
-                throw new MessagePackSerializationException("Invalid RegisterResponse");
-            }
-
-            return new RegisterResponse.Failure();
         } else {
             throw new MessagePackSerializationException("Invalid RegisterResponse");
         }
@@ -60,17 +64,29 @@ public class RegisterResponseFormatter : IMessagePackFormatter<RegisterResponse>
                 if (reader.ReadArrayHeader() != 1) {
                     throw new MessagePackSerializationException("Invalid RegisterResponse");
                 }
-                
+
                 var text = reader.ReadString();
                 return new RegisterResponse.Challenge(text);
             }
-            case "failure":
-                throw new MessagePackSerializationException("Invalid RegisterResponse");
+            case "failure": {
+                if (reader.ReadArrayHeader() != 1) {
+                    throw new MessagePackSerializationException("Invalid RegisterResponse");
+                }
+
+                var reason = reader.ReadString() switch {
+                    "missing_character" => FailureReason.MissingCharacter,
+                    "private_profile" => FailureReason.PrivateProfile,
+                    "challenge_not_found" => FailureReason.ChallengeNotFound,
+                    _ => throw new MessagePackSerializationException("Invalid RegisterResponse"),
+                };
+
+                return new RegisterResponse.Failure(reason);
+            }
             case "success": {
                 if (reader.ReadArrayHeader() != 1) {
                     throw new MessagePackSerializationException("Invalid RegisterResponse");
                 }
-                
+
                 var text = reader.ReadString();
                 return new RegisterResponse.Success(text);
             }

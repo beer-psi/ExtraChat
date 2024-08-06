@@ -11,7 +11,7 @@ public abstract record RegisterResponse {
     public record Challenge(string Text) : RegisterResponse;
 
     [MessagePackObject]
-    public record Failure : RegisterResponse;
+    public record Failure(FailureReason Reason) : RegisterResponse;
 
     [MessagePackObject]
     public record Success(string Key) : RegisterResponse;

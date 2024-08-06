@@ -14,8 +14,18 @@ pub enum RegisterResponse {
     Challenge {
         challenge: String,
     },
-    Failure,
+    Failure {
+        reason: FailureReason,
+    },
     Success {
         key: Redacted<String>,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FailureReason {
+    MissingCharacter,
+    PrivateProfile,
+    ChallengeNotFound,
 }
