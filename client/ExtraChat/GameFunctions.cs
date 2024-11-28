@@ -18,7 +18,7 @@ internal unsafe class GameFunctions : IDisposable {
 
     // all this comes from 6.15: 751AF0
 
-    [Signature("4D 85 C0 74 08 45 8B C1")]
+    [Signature("41 8B C1 4D 85 C0")]
     private readonly delegate* unmanaged<PronounModule*, Utf8String*, ulong, uint, Utf8String*> _resolvePayloads;
 
     // [Signature("E8 ?? ?? ?? ?? 48 8B D0 48 8D 4D F0 E8 ?? ?? ?? ?? EB 6C")]
@@ -41,7 +41,7 @@ internal unsafe class GameFunctions : IDisposable {
     private Hook<SendMessageDelegate> SendMessageHook { get; init; }
 
     [Signature(
-        "E8 ?? ?? ?? ?? 33 C0 EB 1B",
+        "E8 ?? ?? ?? ?? 33 C0 EB 1D",
         DetourName = nameof(SetChatChannelDetour)
     )]
     private Hook<SetChatChannelDelegate> SetChatChannelHook { get; init; }
