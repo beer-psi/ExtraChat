@@ -8,7 +8,7 @@ using Dalamud.Plugin;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
 using ImGuiNET;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using Channel = System.Threading.Channels.Channel;
 
 namespace ExtraChat.Ui;
@@ -189,7 +189,7 @@ internal class PluginUi : IDisposable {
         // }
 
         if (this.Plugin.LocalPlayer is { } player) {
-            if (ImGui.TreeNodeEx($"Settings for {player.Name}{CrossWorld}{player.HomeWorld.GameData?.Name}")) {
+            if (ImGui.TreeNodeEx($"Settings for {player.Name}{CrossWorld}{player.HomeWorld.Value.Name}")) {
                 if (ImGui.Checkbox("Allow receiving invites", ref this.Plugin.ConfigInfo.AllowInvites)) {
                     anyChanged = true;
                     Task.Run(async () => await this.Plugin.Client.AllowInvitesToast(this.Plugin.ConfigInfo.AllowInvites));
@@ -264,7 +264,7 @@ internal class PluginUi : IDisposable {
                 ImGui.SameLine();
 
                 var colourKey = this.Plugin.ConfigInfo.GetUiColour(id);
-                var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRow(colourKey)?.UIForeground ?? 0xff5ad0ff;
+                var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRowOrDefault(colourKey)?.UIForeground ?? 0xff5ad0ff;
                 var vec = ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(colour));
 
                 const string colourPickerId = "linkshell-colour-picker";
@@ -453,7 +453,7 @@ internal class PluginUi : IDisposable {
                 ImGui.SameLine();
 
                 if (ImGui.Button("Open profile")) {
-                    var region = this.Plugin.LocalPlayer?.HomeWorld.GameData?.DataCenter.Value?.Region ?? 2;
+                    var region = this.Plugin.LocalPlayer?.HomeWorld.Value.DataCenter.Value.Region ?? 2;
                     var sub = this.Plugin.ClientState.ClientLanguage switch {
                         ClientLanguage.Japanese => "jp",
                         ClientLanguage.English when region != 2 => "eu",

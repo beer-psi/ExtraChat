@@ -12,7 +12,7 @@ using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Ui;
 using ExtraChat.Util;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using Channel = ExtraChat.Protocol.Channels.Channel;
 
 namespace ExtraChat;
@@ -75,7 +75,7 @@ internal class Client : IDisposable {
         this.StartLoop();
     }
 
-    private void Logout() {
+    private void Logout(int type, int code) {
         this.StopLoop();
     }
 
@@ -186,7 +186,7 @@ internal class Client : IDisposable {
         this.Status = State.RetrievingChallenge;
         var response = await this.QueueMessageAndWait(new RequestKind.Register(new RegisterRequest {
             Name = player.Name.TextValue,
-            World = (ushort) player.HomeWorld.Id,
+            World = (ushort) player.HomeWorld.RowId,
             ChallengeCompleted = false,
         }));
 
@@ -323,7 +323,7 @@ internal class Client : IDisposable {
         this.Status = State.Verifying;
         var response = await this.QueueMessageAndWait(new RequestKind.Register(new RegisterRequest {
             Name = player.Name.TextValue,
-            World = (ushort) player.HomeWorld.Id,
+            World = (ushort) player.HomeWorld.RowId,
             ChallengeCompleted = true,
         }));
 
@@ -719,7 +719,7 @@ internal class Client : IDisposable {
         var channelName = this.Plugin.ConfigInfo.GetName(resp.Channel);
 
         var self = this.Plugin.LocalPlayer;
-        var isSelf = self?.Name.TextValue == resp.Name && self.HomeWorld.Id == resp.World;
+        var isSelf = self?.Name.TextValue == resp.Name && self.HomeWorld.RowId == resp.World;
 
         switch (resp.Kind) {
             case MemberChangeKind.Invite: {
@@ -865,7 +865,7 @@ internal class Client : IDisposable {
 
                     var member = channel.Members
                         .FirstOrDefault(member => member.Name == self?.Name.TextValue
-                                                  && member.World == self.HomeWorld.Id);
+                                                  && member.World == self.HomeWorld.RowId);
                     this.ChannelRanks.Remove(channel.Id);
                     if (member != null) {
                         this.ChannelRanks[channel.Id] = member.Rank;
@@ -924,7 +924,7 @@ internal class Client : IDisposable {
 
                 var member = channel.Members
                     .FirstOrDefault(member => member.Name == self?.Name.TextValue
-                                              && member.World == self.HomeWorld.Id);
+                                              && member.World == self.HomeWorld.RowId);
                 this.ChannelRanks.Remove(channel.Id);
                 if (member != null) {
                     this.ChannelRanks[channel.Id] = member.Rank;
@@ -957,7 +957,7 @@ internal class Client : IDisposable {
 
         var marker = config.GetMarker(resp.Channel) ?? "ECLS?";
 
-        var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.Id;
+        var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
 
         output.AddText($"[{marker}]<");
         if (isSelf) {
@@ -966,11 +966,11 @@ internal class Client : IDisposable {
             output.Add(new PlayerPayload(resp.Sender, resp.World));
         }
 
-        var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.Id;
-        var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.Id == resp.World;
+        var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
+        var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.RowId == resp.World;
         if (!isSelf && !homeWorldsSameAndOnHomeWorld) {
             output.AddIcon(BitmapFontIcon.CrossWorld);
-            var world = this.Plugin.DataManager.GetExcelSheet<World>()?.GetRow(resp.World)?.Name.ToDalamudString();
+            var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name.ToDalamudString();
             if (world != null) {
                 foreach (var payload in world.Payloads) {
                     output.Add(payload);

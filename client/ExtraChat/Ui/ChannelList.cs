@@ -6,7 +6,7 @@ using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
 using ImGuiNET;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace ExtraChat.Ui;
 
@@ -29,8 +29,8 @@ internal class ChannelList {
             .GroupBy(row => row.DataCenter.Value!)
             .Where(grouping => grouping.Key.Region != 0)
             .OrderBy(grouping => grouping.Key.Region)
-            .ThenBy(grouping => grouping.Key.Name.RawString)
-            .Select(grouping => (grouping.Key.Name.RawString, grouping.OrderBy(row => row.Name.RawString).ToList()))
+            .ThenBy(grouping => grouping.Key.Name.ExtractText())
+            .Select(grouping => (grouping.Key.Name.ExtractText(), grouping.OrderBy(row => row.Name.ExtractText()).ToList()))
             .ToList();
     }
 
@@ -249,7 +249,7 @@ internal class ChannelList {
                         ImGui.Separator();
 
                         foreach (var world in worlds) {
-                            if (ImGui.Selectable(world.Name.RawString, this._inviteWorld == world.RowId)) {
+                            if (ImGui.Selectable(world.Name.ExtractText(), this._inviteWorld == world.RowId)) {
                                 this._inviteWorld = (ushort) world.RowId;
                             }
                         }
@@ -384,7 +384,7 @@ internal class ChannelList {
         }
 
         if (rank == Rank.Invited && member.Rank == Rank.Invited) {
-            if (member.Name == this.Plugin.LocalPlayer?.Name.TextValue && member.World == this.Plugin.LocalPlayer?.HomeWorld.Id) {
+            if (member.Name == this.Plugin.LocalPlayer?.Name.TextValue && member.World == this.Plugin.LocalPlayer?.HomeWorld.RowId) {
                 if (ImGui.Selectable("Accept invite")) {
                     Task.Run(async () => await this.Plugin.Client.Join(this._selectedChannel));
                 }

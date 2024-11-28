@@ -22,7 +22,7 @@ internal class Commands : IDisposable {
         this.RegisterAll();
     }
 
-    private void OnLogout() {
+    private void OnLogout(int type, int code) {
         this.UnregisterAll();
     }
 

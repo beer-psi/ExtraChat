@@ -173,7 +173,7 @@ public class Plugin : IDalamudPlugin {
             Name = "Invite to ExtraChat Linkshell",
             OnClicked = _ => {
                 var name = chara.Name.TextValue;
-                this.PluginUi.InviteInfo = (name, (ushort) chara.HomeWorld.Id);
+                this.PluginUi.InviteInfo = (name, (ushort) chara.HomeWorld.RowId);
             },
         });
     }

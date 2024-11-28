@@ -1,5 +1,5 @@
 using Dalamud.Plugin.Services;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace ExtraChat.Util;
 
@@ -19,7 +19,7 @@ internal static class WorldUtil {
                 continue;
             }
 
-            WorldNames[(ushort) world.RowId] = world.Name.RawString;
+            WorldNames[(ushort) world.RowId] = world.Name.ExtractText();
         }
     }
 
