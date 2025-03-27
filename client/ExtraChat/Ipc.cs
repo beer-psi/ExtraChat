@@ -37,7 +37,7 @@ internal class Ipc : IDisposable {
 
         foreach (var (command, id) in this.Plugin.Commands.Registered) {
             var colour = this.Plugin.ConfigInfo.GetUiColour(id);
-            if (this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.UIForeground is { } rgba) {
+            if (this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.Dark is { } rgba) {
                 dict[command] = rgba;
             }
         }
@@ -71,7 +71,7 @@ internal class Ipc : IDisposable {
 
         var name = this.Plugin.ConfigInfo.GetFullName(over);
         var colour = this.Plugin.ConfigInfo.GetUiColour(over);
-        var rgba = this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.UIForeground ?? 0;
+        var rgba = this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.Dark ?? 0;
 
         this.OverrideChannelColour.SendMessage(new OverrideInfo {
             Channel = name,

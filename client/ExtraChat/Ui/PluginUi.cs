@@ -28,14 +28,14 @@ internal class PluginUi : IDisposable {
         this.ChannelList = new ChannelList(this.Plugin);
 
         this._uiColours = this.Plugin.DataManager.GetExcelSheet<UIColor>()!
-            .Where(row => row.UIForeground is not (0 or 0x000000FF))
-            .Select(row => (row.RowId, row.UIForeground, ColourUtil.Step(row.UIForeground)))
-            .GroupBy(row => row.UIForeground)
+            .Where(row => row.Dark is not (0 or 0x000000FF))
+            .Select(row => (row.RowId, row.Dark, ColourUtil.Step(row.Dark)))
+            .GroupBy(row => row.Dark)
             .Select(grouping => grouping.First())
             .OrderBy(row => row.Item3.Item1)
             .ThenBy(row => row.Item3.Item2)
             .ThenBy(row => row.Item3.Item3)
-            .Select(row => (row.RowId, ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(row.Item2))))
+            .Select(row => (row.RowId, ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(row.Dark))))
             .ToList();
 
         this.Plugin.Interface.UiBuilder.Draw += this.Draw;
@@ -264,7 +264,7 @@ internal class PluginUi : IDisposable {
                 ImGui.SameLine();
 
                 var colourKey = this.Plugin.ConfigInfo.GetUiColour(id);
-                var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRowOrDefault(colourKey)?.UIForeground ?? 0xff5ad0ff;
+                var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRowOrDefault(colourKey)?.Dark ?? 0xff5ad0ff;
                 var vec = ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(colour));
 
                 const string colourPickerId = "linkshell-colour-picker";

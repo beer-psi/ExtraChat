@@ -21,7 +21,7 @@ internal unsafe class GameFunctions : IDisposable {
     [Signature("41 8B C1 4D 85 C0")]
     private readonly delegate* unmanaged<PronounModule*, Utf8String*, ulong, uint, Utf8String*> _resolvePayloads;
 
-    // [Signature("E8 ?? ?? ?? ?? 48 8B D0 48 8D 4D F0 E8 ?? ?? ?? ?? EB 6C")]
+    // [Signature("E8 ?? ?? ?? ?? 48 8B D0 48 8D 4D ?? E8 ?? ?? ?? ?? 41 B4")]
     // private readonly delegate* unmanaged<PronounModule*, Utf8String*, Utf8String*> _step1;
 
     [Signature("E8 ?? ?? ?? ?? 0F B7 7F 08 48 8B CE")]
@@ -122,8 +122,8 @@ internal unsafe class GameFunctions : IDisposable {
         var postStep2 = this._step2(module, postStep1, 1);
 
         var list = new List<byte>();
-        for (var i = 0; i < postStep2->BufUsed && postStep2->StringPtr[i] != 0; i++) {
-            list.Add(postStep2->StringPtr[i]);
+        for (var i = 0; i < postStep2->BufUsed && postStep2->StringPtr.Value[i] != 0; i++) {
+            list.Add(postStep2->StringPtr.Value[i]);
         }
 
         str->Dtor();
@@ -154,7 +154,7 @@ internal unsafe class GameFunctions : IDisposable {
         var sendTo = this.OverrideChannel;
 
         byte[]? toSend = null;
-        if (message->StringPtr[0] == 2) {
+        if (message->StringPtr.Value[0] == 2) {
             // check for autotranslate commands
             var payload = Payload.Decode(new BinaryReader(new UnmanagedMemoryStream(message->StringPtr, message->BufSize)));
             if (payload is AutoTranslatePayload at && at.Text[2..].StartsWith('/')) {
@@ -164,12 +164,12 @@ internal unsafe class GameFunctions : IDisposable {
             }
         }
 
-        if (message->StringPtr[0] == '/') {
+        if (message->StringPtr.Value[0] == '/') {
             sendTo = Guid.Empty;
             var command = "";
             int i;
             for (i = 0; i < message->BufSize; i++) {
-                var c = message->StringPtr[i];
+                var c = message->StringPtr.Value[i];
                 if (c == 0 || char.IsWhiteSpace((char) c)) {
                     break;
                 }
@@ -178,7 +178,7 @@ internal unsafe class GameFunctions : IDisposable {
             }
 
             if (this.Plugin.Commands.Registered.TryGetValue(command, out var id)) {
-                var entireMessage = MemoryHelper.ReadRawNullTerminated((nint) message->StringPtr);
+                var entireMessage = MemoryHelper.ReadRawNullTerminated((nint) message->StringPtr.Value);
                 sendTo = id;
                 if (entireMessage.Length - 1 >= i && char.IsWhiteSpace((char) entireMessage[i])) {
                     i += 1;
@@ -198,7 +198,7 @@ internal unsafe class GameFunctions : IDisposable {
             return true;
         }
 
-        toSend ??= MemoryHelper.ReadRawNullTerminated((nint) message->StringPtr);
+        toSend ??= MemoryHelper.ReadRawNullTerminated((nint) message->StringPtr.Value);
 
         if (toSend.Length == 0 || toSend.All(c => char.IsWhiteSpace((char) c))) {
             // don't send blank messages even to the original handler
@@ -237,7 +237,7 @@ internal unsafe class GameFunctions : IDisposable {
             chatChannel->SetString(bytesPtr);
         }
 
-        return (nint) chatChannel->StringPtr;
+        return (nint) chatChannel->StringPtr.Value;
     }
 
     private byte ShouldDoNameLookupDetour(nint agent) {
