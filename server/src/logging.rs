@@ -39,7 +39,9 @@ pub fn setup() -> Result<()> {
             .chain(std::io::stdout())
         )
         .chain(fern::Dispatch::new()
-            .level(LevelFilter::Trace)
+            .filter(|meta| {
+                meta.level() <= *LOG_LEVEL.read()
+            })
             .chain(fern::log_file("extrachat.log")?)
         )
         .apply()
