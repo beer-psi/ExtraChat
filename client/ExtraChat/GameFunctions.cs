@@ -24,7 +24,7 @@ internal unsafe class GameFunctions : IDisposable {
     // [Signature("E8 ?? ?? ?? ?? 48 8B D0 48 8D 4D ?? E8 ?? ?? ?? ?? 41 B4")]
     // private readonly delegate* unmanaged<PronounModule*, Utf8String*, Utf8String*> _step1;
 
-    [Signature("E8 ?? ?? ?? ?? 0F B7 7F 08 48 8B CE")]
+    [Signature("E8 ?? ?? ?? ?? 44 88 74 24 ?? 4C 8D 45")]
     private readonly delegate* unmanaged<PronounModule*, Utf8String*, byte, Utf8String*> _step2;
 
     [Signature("E8 ?? ?? ?? ?? 49 8B 45 00 49 8B CD FF 50 68")]
@@ -35,13 +35,13 @@ internal unsafe class GameFunctions : IDisposable {
     private delegate void SetChatChannelDelegate(RaptureShellModule* module, uint channel);
 
     [Signature(
-        "E8 ?? ?? ?? ?? FE 86 ?? ?? ?? ?? C7 86",
+        "E8 ?? ?? ?? ?? FE 87 ?? ?? ?? ?? C7 87",
         DetourName = nameof(SendMessageDetour)
     )]
     private Hook<SendMessageDelegate> SendMessageHook { get; init; }
 
     [Signature(
-        "E8 ?? ?? ?? ?? 33 C0 EB 1D",
+        "E8 ?? ?? ?? ?? 33 C0 EB ?? 85 D2",
         DetourName = nameof(SetChatChannelDetour)
     )]
     private Hook<SetChatChannelDelegate> SetChatChannelHook { get; init; }
