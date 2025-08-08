@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Threading.Channels;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Plugin;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
-using ImGuiNET;
 using Lumina.Excel.Sheets;
 using Channel = System.Threading.Channels.Channel;
 
@@ -444,7 +444,7 @@ internal class PluginUi : IDisposable {
                 ImGui.TextUnformatted("Copy the challenge below and save it in your Lodestone profile. After saving, click the button below to verify. After successfully verifying, you can delete the challenge from your profile if desired.");
 
                 ImGui.SetNextItemWidth(-1);
-                ImGui.InputText("##challenge", ref this._challenge, (uint) this._challenge.Length, ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.ReadOnly);
+                ImGui.InputText("##challenge", ref this._challenge, this._challenge.Length, ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.ReadOnly);
 
                 if (ImGui.Button("Copy")) {
                     ImGui.SetClipboardText(this._challenge);

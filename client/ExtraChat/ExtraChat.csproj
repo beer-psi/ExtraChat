@@ -39,8 +39,8 @@
             <HintPath>$(DalamudLibPath)\InteropGenerator.Runtime.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="ImGui.NET">
-            <HintPath>$(DalamudLibPath)\ImGui.NET.dll</HintPath>
+        <Reference Include="Dalamud.Bindings.ImGui">
+            <HintPath>$(DalamudLibPath)\Dalamud.Bindings.ImGui.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="ImGuiScene">
@@ -59,7 +59,7 @@
 
     <ItemGroup>
         <PackageReference Include="ASodium" Version="0.6.1" />
-        <PackageReference Include="DalamudPackager" Version="12.0.0" />
+        <PackageReference Include="DalamudPackager" Version="13.0.0" />
         <PackageReference Include="MessagePack" Version="2.5.192" />
         <PackageReference Include="System.Net.WebSockets.Client" Version="4.3.2"/>
         <PackageReference Include="System.Threading.Channels" Version="9.0.3"/>

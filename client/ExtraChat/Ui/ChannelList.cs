@@ -1,11 +1,11 @@
 using System.Numerics;
 using System.Text;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
-using ImGuiNET;
 using Lumina.Excel.Sheets;
 
 namespace ExtraChat.Ui;
@@ -181,7 +181,7 @@ internal class ChannelList {
             anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 3);
         }
 
-        if (!ImGui.BeginPopupContextItem()) {
+        if (!ImGui.BeginPopupContextItem($"channel-list-{id}-context")) {
             return;
         }
 
