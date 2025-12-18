@@ -1,7 +1,7 @@
 <Project Sdk="Dalamud.NET.Sdk/14.0.1">
 
     <PropertyGroup>
-        <Version>1.3.9</Version>
+        <Version>1.3.10</Version>
         <LangVersion>preview</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
