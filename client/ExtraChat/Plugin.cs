@@ -55,6 +55,9 @@ public class Plugin : IDalamudPlugin {
     internal IObjectTable ObjectTable { get; init; }
 
     [PluginService]
+    internal IPlayerState PlayerState { get; init; }
+
+    [PluginService]
     internal ITargetManager TargetManager { get; init; }
 
     [PluginService]
@@ -64,7 +67,7 @@ public class Plugin : IDalamudPlugin {
     private IToastGui ToastGui { get; init; }
 
     internal Configuration Config { get; }
-    internal ConfigInfo ConfigInfo => this.Config.GetConfig(this.ClientState.LocalContentId);
+    internal ConfigInfo ConfigInfo => this.Config.GetConfig(this.PlayerState.ContentId);
     internal Client Client { get; }
     internal Commands Commands { get; }
     internal PluginUi PluginUi { get; }
@@ -126,7 +129,7 @@ public class Plugin : IDalamudPlugin {
     }
 
     private void FrameworkUpdate(IFramework framework) {
-        if (this.ClientState.LocalPlayer is { } player) {
+        if (this.ObjectTable.LocalPlayer is { } player) {
             this.LocalPlayer = player;
         } else if (!this.ClientState.IsLoggedIn) {
             // only set to null if not logged in

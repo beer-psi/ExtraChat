@@ -453,7 +453,7 @@ internal class PluginUi : IDisposable {
                 ImGui.SameLine();
 
                 if (ImGui.Button("Open profile")) {
-                    var region = this.Plugin.LocalPlayer?.HomeWorld.Value.DataCenter.Value.Region ?? 2;
+                    var region = this.Plugin.LocalPlayer?.HomeWorld.Value.DataCenter.Value.Region.RowId ?? 2;
                     var sub = this.Plugin.ClientState.ClientLanguage switch {
                         ClientLanguage.Japanese => "jp",
                         ClientLanguage.English when region != 2 => "eu",

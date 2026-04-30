@@ -4,18 +4,18 @@
     "net10.0-windows7.0": {
       "ASodium": {
         "type": "Direct",
-        "requested": "[0.6.1, )",
-        "resolved": "0.6.1",
-        "contentHash": "OXkGRa59bY1JavHdCvBeejsbV+JwxxcY0FW7yWeNuhXCBiXuquDH/KrukGXLFO7WCo+YSZZuRRfbr8I/88ZLdw==",
+        "requested": "[0.6.6, )",
+        "resolved": "0.6.6",
+        "contentHash": "/FmOkt7jINH/UF0K3WglX8/Hz5A5yJ3XqPQh5B9tq8NWx+7p8x4TwETw1XzyyYWveepmO1zwUULfo5GlNXv95w==",
         "dependencies": {
-          "libsodium": "1.0.19"
+          "libsodium": "1.0.22"
         }
       },
       "DalamudPackager": {
         "type": "Direct",
-        "requested": "[14.0.1, )",
-        "resolved": "14.0.1",
-        "contentHash": "y0WWyUE6dhpGdolK3iKgwys05/nZaVf4ZPtIjpLhJBZvHxkkiE23zYRo7K7uqAgoK/QvK5cqF6l3VG5AbgC6KA=="
+        "requested": "[15.0.0, )",
+        "resolved": "15.0.0",
+        "contentHash": "411vwC8/X8Z/sQ2TI6v3SvOn66xFPeOjFn3Zn+h0d3Ox2t1kFm66AhDvmx/qcMwVrR+Hidxj0dadpQ2dgyXMBQ=="
       },
       "DotNet.ReproducibleBuilds": {
         "type": "Direct",
@@ -44,14 +44,14 @@
       },
       "System.Threading.Channels": {
         "type": "Direct",
-        "requested": "[9.0.3, )",
-        "resolved": "9.0.3",
-        "contentHash": "Ao0iegVONKYVw0eWxJv0ArtMVfkFjgyyYKtUXru6xX5H95flSZWW3QCavD4PAgwpc0ETP38kGHaYbPzSE7sw2w=="
+        "requested": "[10.0.7, )",
+        "resolved": "10.0.7",
+        "contentHash": "dAMPvS991+gY4se5heT821mfUMkUu0CEWSTf4i725Cjst5rpGqkWcgwVcIKyHMSmu/XyBnnF6eyJx8nrnxxNFw=="
       },
       "libsodium": {
         "type": "Transitive",
-        "resolved": "1.0.19",
-        "contentHash": "tupm/HViwBN6Knd/gckR+cLaJGR39GLmiU4iDMM5hp/1BoczMr8fwJhSU+3/C2V4hi9nBK/4FICRKtTLU30TCA=="
+        "resolved": "1.0.22",
+        "contentHash": "KPD9SloJFclrsjnhABu7dzWrcyYkwPbvx5l1gRSPAX/0n+OBtSiVCKtGFv4n+ecWUHU0tCG9LSSwoZZx673zBQ=="
       },
       "MessagePack.Annotations": {
         "type": "Transitive",
