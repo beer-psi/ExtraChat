@@ -235,7 +235,7 @@ async fn main() -> Result<()> {
         let res: Result<()> = try {
             tokio::select! {
                 accept = server.accept() => {
-                    let (sock, _addr) = accept?;
+                    let (sock, _addr) = accept.context("could not accept socket connection")?;
                     let state = Arc::clone(&state);
                     tokio::task::spawn(async move {
                         let conn = match tokio_tungstenite::accept_async(sock).await {
@@ -378,8 +378,8 @@ async fn client_loop(state: Arc<RwLock<State>>, mut conn: WsStream) -> Result<()
                 }
                 msg = rx.recv() => {
                     if let Some(msg) = msg {
-                        let encoded = rmp_serde::to_vec(&msg)?;
-                        conn.send(WsMessage::Binary(encoded)).await?;
+                        let encoded = rmp_serde::to_vec(&msg).context("could not encode messagepack")?;
+                        conn.send(WsMessage::Binary(encoded)).await.context("could not send message")?;
                     }
                 }
                 msg = conn.next() => {
@@ -390,7 +390,7 @@ async fn client_loop(state: Arc<RwLock<State>>, mut conn: WsStream) -> Result<()
 
                     match msg {
                         Some(Ok(WsMessage::Binary(msg))) => {
-                            let msg: RequestContainer = rmp_serde::from_slice(&msg)?;
+                            let msg: RequestContainer = rmp_serde::from_slice(&msg).context("could not decode messagepack")?;
                             debug!("{:#?}", msg);
 
                             let logged_in = client_state.read().await.user.is_some();
