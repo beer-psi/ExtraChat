@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "update users set name = ?, world = ?, last_updated = current_timestamp where lodestone_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "26ef6310a2f303f1fee4b7d66adf44568e67c4915b2491ce1830859067e0462b"
+}

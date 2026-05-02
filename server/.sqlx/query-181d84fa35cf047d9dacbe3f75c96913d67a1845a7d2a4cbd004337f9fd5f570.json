@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select lodestone_id from user_channels where channel_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "lodestone_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "181d84fa35cf047d9dacbe3f75c96913d67a1845a7d2a4cbd004337f9fd5f570"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select lodestone_id from users where name = ? and world = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "lodestone_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eb301cb8f516c1f43d176b9f0ba1937a7bc0483308bd5121f04285b798aafd5b"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from user_channels where channel_id = ? and lodestone_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "82236ee32912657f556de1f01b607c25f2d533b1d3f6f250b546f743e41387c4"
+}

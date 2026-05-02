@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from verifications where lodestone_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8bddf89842ab746da027b8f6bcbcb7868eef0eca03655c90f1cf9ebfd4c65251"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "update channels set name = ? where id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4fb88f130d6cf385322303ee42e3b33dee1ddeabe196fec759fe69a6abafd8e5"
+}

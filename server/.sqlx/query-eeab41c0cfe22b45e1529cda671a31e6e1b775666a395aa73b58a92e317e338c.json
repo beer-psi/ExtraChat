@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "select channels.*, user_channels.rank from user_channels inner join channels on user_channels.channel_id = channels.id where user_channels.lodestone_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "rank",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "eeab41c0cfe22b45e1529cda671a31e6e1b775666a395aa73b58a92e317e338c"
+}

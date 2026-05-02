@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "select channels.* from channel_invites inner join channels on channel_invites.channel_id = channels.id where channel_invites.invited = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ae5639f723aa60559320faaeeaee40e09fecc290ad0d31d926cb13246f65e995"
+}

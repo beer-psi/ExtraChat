@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from channel_invites where channel_id = ? and invited = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2781fdcbb3a9cd5cbdc640ac664a091e43fc25962db4ec64e0373b7ccb86a554"
+}

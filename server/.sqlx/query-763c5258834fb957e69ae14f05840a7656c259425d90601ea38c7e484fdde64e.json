@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "select * from users where key_short = ? and key_hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "lodestone_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "world",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_short",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_hash",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_updated",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "763c5258834fb957e69ae14f05840a7656c259425d90601ea38c7e484fdde64e"
+}

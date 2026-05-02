@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select count(distinct lodestone_id) as count from user_channels",
+  "describe": {
+    "columns": [
+      {
+        "name": "count",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "591203927b9da9f8f438ee322c8604ee797adab613ada94cd95bee04f570c3a6"
+}

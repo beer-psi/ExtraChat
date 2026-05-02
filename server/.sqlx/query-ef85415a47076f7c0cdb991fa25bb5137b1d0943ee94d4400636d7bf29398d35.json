@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                        insert into verifications (lodestone_id, challenge)\n                        values (?1, ?2)\n                        on conflict (lodestone_id)\n                            do update set challenge  = ?2,\n                                          created_at = current_timestamp\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ef85415a47076f7c0cdb991fa25bb5137b1d0943ee94d4400636d7bf29398d35"
+}

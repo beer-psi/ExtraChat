@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select rank from user_channels where channel_id = ? and lodestone_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "rank",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a1eecf4f5a76be1f33436a66bfe0b2870423ce22fd2be94ffa60983de29edf6e"
+}

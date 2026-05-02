@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "select challenge, created_at from verifications where lodestone_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "challenge",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6b89f0e6c9571394c490a9f9b473ac278bd8a7e4b6117bc5649db8f270dfa992"
+}

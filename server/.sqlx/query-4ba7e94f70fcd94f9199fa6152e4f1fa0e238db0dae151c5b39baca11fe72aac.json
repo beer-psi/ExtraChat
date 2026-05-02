@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from users where lodestone_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "4ba7e94f70fcd94f9199fa6152e4f1fa0e238db0dae151c5b39baca11fe72aac"
+}

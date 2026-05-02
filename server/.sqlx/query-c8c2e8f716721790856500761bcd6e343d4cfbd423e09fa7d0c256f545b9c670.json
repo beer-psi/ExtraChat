@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select channel_id from channel_invites where invited = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "channel_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c8c2e8f716721790856500761bcd6e343d4cfbd423e09fa7d0c256f545b9c670"
+}

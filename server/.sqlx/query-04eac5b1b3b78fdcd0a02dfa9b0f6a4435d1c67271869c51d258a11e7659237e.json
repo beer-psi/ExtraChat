@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            insert into users (lodestone_id, name, world, key_short, key_hash, last_updated)\n            values (?1, ?2, ?3, ?4, ?5, current_timestamp)\n            on conflict (lodestone_id)\n                do update set name         = ?2,\n                              world        = ?3,\n                              key_short    = ?4,\n                              key_hash     = ?5,\n                              last_updated = current_timestamp\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "04eac5b1b3b78fdcd0a02dfa9b0f6a4435d1c67271869c51d258a11e7659237e"
+}

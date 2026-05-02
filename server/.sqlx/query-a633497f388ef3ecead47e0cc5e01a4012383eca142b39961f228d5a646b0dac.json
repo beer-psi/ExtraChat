@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "insert into channel_invites (channel_id, invited, inviter) values (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "a633497f388ef3ecead47e0cc5e01a4012383eca142b39961f228d5a646b0dac"
+}

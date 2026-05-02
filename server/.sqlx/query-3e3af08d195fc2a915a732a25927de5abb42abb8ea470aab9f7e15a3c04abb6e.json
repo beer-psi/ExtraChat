@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "select * from channels where id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3e3af08d195fc2a915a732a25927de5abb42abb8ea470aab9f7e15a3c04abb6e"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "update user_channels set rank = ? where channel_id = ? and lodestone_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "ce60e7e50f482b82bc3e596c1a8421ded5dd8289a3216859c6bf88e56028741b"
+}

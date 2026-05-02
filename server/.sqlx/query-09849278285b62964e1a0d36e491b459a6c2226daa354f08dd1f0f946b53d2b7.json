@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "select users.lodestone_id, users.name, users.world, cast(0 as int) as rank from channel_invites inner join users on users.lodestone_id = channel_invites.invited where channel_invites.channel_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "lodestone_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "world",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "rank",
+        "ordinal": 3,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "09849278285b62964e1a0d36e491b459a6c2226daa354f08dd1f0f946b53d2b7"
+}

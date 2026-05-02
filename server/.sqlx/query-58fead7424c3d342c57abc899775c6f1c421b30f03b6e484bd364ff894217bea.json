@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "insert into user_channels (lodestone_id, channel_id, rank) values (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "58fead7424c3d342c57abc899775c6f1c421b30f03b6e484bd364ff894217bea"
+}
