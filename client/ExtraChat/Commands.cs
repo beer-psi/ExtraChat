@@ -1,8 +1,5 @@
-using System.Text;
 using Dalamud.Game.Command;
-using Dalamud.Game.Text.SeStringHandling;
 using ExtraChat.Util;
-using Lumina.Text.ReadOnly;
 
 namespace ExtraChat;
 
@@ -57,6 +54,8 @@ internal class Commands : IDisposable {
     private void RegisterAll() {
         var info = this.Plugin.ConfigInfo;
         foreach (var (idx, id) in info.ChannelOrder) {
+            if (idx == 0)
+                this.RegisterLinkshellCommand("/ecl", id);
             this.RegisterLinkshellCommand($"/ecl{idx + 1}", id);
         }
 

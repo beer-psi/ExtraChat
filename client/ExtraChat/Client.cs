@@ -46,6 +46,9 @@ internal class Client : IAsyncDisposable {
     private readonly SemaphoreSlim _waitersSemaphore = new(1, 1);
     private Dictionary<uint, ChannelWriter<ResponseKind>> Waiters { get; set; } = new();
     private Channel<(RequestContainer, ChannelWriter<ChannelReader<ResponseKind>>?)> ToSend { get; set; } = System.Threading.Channels.Channel.CreateUnbounded<(RequestContainer, ChannelWriter<ChannelReader<ResponseKind>>?)>();
+    
+    private Channel<MessageResponse> ReceivedMessages { get; set; } =
+        System.Threading.Channels.Channel.CreateUnbounded<MessageResponse>();
 
     internal Dictionary<Guid, Channel> Channels { get; } = new();
     internal Dictionary<Guid, Channel> InvitedChannels { get; } = new();
@@ -160,6 +163,14 @@ internal class Client : IAsyncDisposable {
                 await Task.Delay(TimeSpan.FromSeconds(3));
             }
             // ReSharper disable once FunctionNeverReturns
+        });
+
+        Task.Run(async () =>
+        {
+            while (this._active || this.ReceivedMessages.Reader is { CanCount: true, Count: > 0 })
+            {
+                this.HandleMessage(await this.ReceivedMessages.Reader.ReadAsync());
+            }
         });
     }
 
@@ -651,7 +662,7 @@ internal class Client : IAsyncDisposable {
                         break;
                     }
                     case { Kind: ResponseKind.Message { Response: var resp } }: {
-                        Task.Run(() => this.HandleMessage(resp));
+                        await this.ReceivedMessages.Writer.WriteAsync(resp);
                         break;
                     }
                     case { Kind: ResponseKind.Invited { Response: var resp } }: {

@@ -1,7 +1,6 @@
-﻿using System.Buffers;
+﻿
 using System.Text;
 using Dalamud.Hooking;
-using Dalamud.Memory;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -35,7 +34,15 @@ internal unsafe class GameFunctions : IDisposable {
     private Hook<ShouldDoNameLookupDelegate> ShouldDoNameLookupHook { get; init; }
     private delegate byte ShouldDoNameLookupDelegate(AgentChatLog* agent);
     
-    private Hook<ShellCommandModule.Delegates.ExecuteCommandInner> ExecuteCommandInnerHook { get; init; }
+    // Component::Shell::ShellCommandModule::??
+    // Called by ShellCommandModule::ExecuteCommandInner and RaptureShellModule::Update on every message/macro line
+    // after Component::Shell::ShellCommandModule::EvaluateTextCommand is called.
+    // Signature is the call site in RaptureShellModule::Update.
+    [Signature("E8 ?? ?? ?? ?? C6 87 ?? ?? ?? ?? ?? 48 8B 5C 24 ?? 48 85 DB", DetourName = nameof(ProcessCommandWithContextDetour))]
+    private Hook<ProcessCommandWithContext> ProcessCommandWithContextHook { get; init; }
+    private delegate void ProcessCommandWithContext(
+        ShellCommandModule* self, Utf8String* command, UIModule* uiModule, ShellCommandInterface.CommandContext* ctx, int evaluateTextCommandReturn);
+    
     private Hook<AgentChatLog.Delegates.ChangeChannelName> ChangeChannelNameHook { get; init; }
 
     #pragma warning disable CS0618
@@ -58,17 +65,14 @@ internal unsafe class GameFunctions : IDisposable {
         this.Plugin = plugin;
         this.Plugin.GameInteropProvider.InitializeFromAttributes(this);
         
-        this.ExecuteCommandInnerHook =
-            Plugin.GameInteropProvider.HookFromAddress<ShellCommandModule.Delegates.ExecuteCommandInner>(
-                (nint)ShellCommandModule.MemberFunctionPointers.ExecuteCommandInner, ExecuteCommandInnerDetour);
         this.ChangeChannelNameHook =
             Plugin.GameInteropProvider.HookFromAddress<AgentChatLog.Delegates.ChangeChannelName>(
                 (nint)AgentChatLog.MemberFunctionPointers.ChangeChannelName, ChangeChannelNameDetour);
         
-        this.ExecuteCommandInnerHook!.Enable();
         this.SetChatChannelHook!.Enable();
         this.ChangeChannelNameHook!.Enable();
         this.ShouldDoNameLookupHook!.Enable();
+        this.ProcessCommandWithContextHook!.Enable();
 
         if (this.Plugin.ConfigInfo.CurrentChannel != Guid.Empty)
         {
@@ -78,61 +82,79 @@ internal unsafe class GameFunctions : IDisposable {
     }
 
     public void Dispose() {
+        this.ProcessCommandWithContextHook.Dispose();
         this.ShouldDoNameLookupHook.Dispose();
         this.ChangeChannelNameHook.Dispose();
         this.SetChatChannelHook.Dispose();
-        this.ExecuteCommandInnerHook.Dispose();
     }
 
     internal void ResetOverride() {
         this.OverrideChannel = Guid.Empty;
     }
+    
+    private readonly Lock _pronounModuleLock = new();
 
     internal byte[] ResolvePayloads(ReadOnlySpan<byte> input) {
         if (input.Length == 0) {
             return input.ToArray();
         }
-
-        var module = UIModule.Instance()->GetPronounModule();
+        
         var str = input.ToUtf8String();
-        var result = module->ProcessString(str, true);
+        Utf8String* result;
+        lock (_pronounModuleLock)
+        {
+            var module = UIModule.Instance()->GetPronounModule();
+            result = module->ProcessString(str, true);
+        }
         var buf = result->AsSpan().ToArray();
 
         str->Dtor(true);
 
         return buf;
     }
-
+    
     internal byte[] ProcessFixedMacros(ReadOnlySpan<byte> input, bool playSoundEffects)
     {
         if (input.Length == 0) {
             return input.ToArray();
         }
         
-        var pm = UIModule.Instance()->GetPronounModule();
         var str = input.ToUtf8String();
-        var result = _processFixedMacros(pm, str, (byte)(playSoundEffects ? 1 : 0));
+        Utf8String* result;
+        lock (_pronounModuleLock)
+        {
+            var pm = UIModule.Instance()->GetPronounModule();
+            result = _processFixedMacros(pm, str, (byte)(playSoundEffects ? 1 : 0));
+        }
         var buf = result->AsSpan().ToArray();
 
         str->Dtor(true);
 
         return buf;
     }
-
-    private void ExecuteCommandInnerDetour(ShellCommandModule* a1, Utf8String* message, UIModule* a3) {
-        try {
-            if (this.ExecuteCommandInnerDetourInner(message, a3)) {
-                this.ExecuteCommandInnerHook.Original(a1, message, a3);
-            }
-        } catch (Exception ex) {
-            Plugin.Log.Error(ex, "Error in message detour");
+    
+    private void ProcessCommandWithContextDetour(
+        ShellCommandModule* self, Utf8String* command, UIModule* uiModule, ShellCommandInterface.CommandContext* ctx, int evaluateTextCommandReturn)
+    {
+        try
+        {
+            if (this.ProcessCommandWithContextDetourInner(command, uiModule, evaluateTextCommandReturn))
+                this.ProcessCommandWithContextHook.Original(self, command, uiModule, ctx, evaluateTextCommandReturn);
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.Error(e, "Error in message detour");
         }
     }
 
-    // Can't really hook the debug command handler since that cleans up all the auto-translate payloads and such.
-    /// <returns>true if the original function should be called</returns>
-    private bool ExecuteCommandInnerDetourInner(Utf8String* message, UIModule* uiModule)
+    private bool ProcessCommandWithContextDetourInner(Utf8String* command, UIModule* uiModule, int evaluateTextCommandReturn)
     {
+        // 0 = EvaluateTextCommand success
+        // -1 = is not command or is unknown command
+        // -2 = is command but did not match expected command ID
+        if (evaluateTextCommandReturn != -1)
+            return true;
+        
         // passthrough, we're in a /reply command sequence
         // /reply is handled by Client::UI::Shell::ShellCommandChatReply.ExecuteCommand, and works by
         //  - checking last player you sent a tell to
@@ -147,7 +169,7 @@ internal unsafe class GameFunctions : IDisposable {
         
         var sendTo = this.OverrideChannel;
         var toSend = ReadOnlySpan<byte>.Empty;
-        var messageSpan = message->AsSpan();
+        var messageSpan = command->AsSpan();
         
         if (messageSpan.Length > 1 && messageSpan[0] == '/') {
             sendTo = Guid.Empty;
@@ -166,9 +188,9 @@ internal unsafe class GameFunctions : IDisposable {
             if (commandOffset == -1)
                 commandOffset = messageSpan.Length;
 
-            var command = Encoding.UTF8.GetString(messageSpan[..commandOffset]);
+            var commandName = Encoding.UTF8.GetString(messageSpan[..commandOffset]);
 
-            if (this.Plugin.Commands.Registered.TryGetValue(command, out var id))
+            if (this.Plugin.Commands.Registered.TryGetValue(commandName, out var id))
             {
                 sendTo = id;
 
