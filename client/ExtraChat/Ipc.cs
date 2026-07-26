@@ -62,8 +62,7 @@ internal class Ipc : IDisposable {
         this.ChannelNames.SendMessage(this.GetChannelNames());
     }
 
-    internal void BroadcastOverride() {
-        var over = this.Plugin.GameFunctions.OverrideChannel;
+    internal void BroadcastOverride(Guid over) {
         if (over == Guid.Empty) {
             this.OverrideChannelColour.SendMessage(new OverrideInfo());
             return;

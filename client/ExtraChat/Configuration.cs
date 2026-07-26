@@ -36,11 +36,13 @@ internal class Configuration : IPluginConfiguration {
 internal class ConfigInfo {
     public string? Key;
     public Dictionary<Guid, ChannelInfo> Channels = new();
+    public Guid CurrentChannel = Guid.Empty;
     public Dictionary<int, Guid> ChannelOrder = new();
     public Dictionary<string, Guid> Aliases = new();
     public Dictionary<Guid, ushort> ChannelColors = new();
     public Dictionary<Guid, string> ChannelMarkers = new();
     public Dictionary<Guid, XivChatType> ChannelChannels = new();
+    public Dictionary<Guid, NotificationSound> ChannelSoundEffects = new();
     public int TutorialStep;
     public bool AllowInvites = true;
 

@@ -1,5 +1,4 @@
 ﻿using ASodium;
-using Dalamud.Game.ClientState.Objects;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Game.Text;
@@ -16,7 +15,7 @@ using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 namespace ExtraChat;
 
 // ReSharper disable once ClassNeverInstantiated.Global
-public class Plugin : IDalamudPlugin {
+public class Plugin : IAsyncDalamudPlugin {
     internal const ushort DefaultColour = 578;
 
     internal static string Name => "ExtraChat";
@@ -96,11 +95,11 @@ public class Plugin : IDalamudPlugin {
         SodiumInit.Init();
         WorldUtil.Initialise(this.DataManager!);
         this.Config = this.Interface!.GetPluginConfig() as Configuration ?? new Configuration();
-        this.Client = new Client(this);
         this.Commands = new Commands(this);
-        this.PluginUi = new PluginUi(this);
-        this.GameFunctions = new GameFunctions(this);
         this.Ipc = new Ipc(this);
+        this.GameFunctions = new GameFunctions(this);
+        this.Client = new Client(this);
+        this.PluginUi = new PluginUi(this);
 
         this.Integrations = [
             new ChatTwo(this),
@@ -110,7 +109,13 @@ public class Plugin : IDalamudPlugin {
         this.ContextMenu!.OnMenuOpened += this.OnMenuOpened;
     }
 
-    public void Dispose() {
+    public Task LoadAsync(CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
         this.GameFunctions.ResetOverride();
 
         this.ContextMenu.OnMenuOpened -= this.OnMenuOpened;
@@ -125,7 +130,9 @@ public class Plugin : IDalamudPlugin {
         this.GameFunctions.Dispose();
         this.PluginUi.Dispose();
         this.Commands.Dispose();
-        this.Client.Dispose();
+        await this.Client.DisposeAsync();
+        
+        GC.SuppressFinalize(this);
     }
 
     private void FrameworkUpdate(IFramework framework) {

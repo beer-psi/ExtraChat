@@ -1,5 +1,8 @@
+using System.Text;
 using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling;
 using ExtraChat.Util;
+using Lumina.Text.ReadOnly;
 
 namespace ExtraChat;
 
@@ -47,21 +50,22 @@ internal class Commands : IDisposable {
     internal void ReregisterAll() {
         this.UnregisterAll();
         this.RegisterAll();
-        this.Plugin.Ipc.BroadcastChannelCommandColours();
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
+        this.Plugin.Ipc?.BroadcastChannelCommandColours();
     }
 
-    internal void RegisterAll() {
+    private void RegisterAll() {
         var info = this.Plugin.ConfigInfo;
         foreach (var (idx, id) in info.ChannelOrder) {
-            this.RegisterOne($"/ecl{idx + 1}", id);
+            this.RegisterLinkshellCommand($"/ecl{idx + 1}", id);
         }
 
         foreach (var (alias, id) in info.Aliases) {
-            this.RegisterOne(alias, id);
+            this.RegisterLinkshellCommand(alias, id);
         }
     }
 
-    internal void UnregisterAll() {
+    private void UnregisterAll() {
         foreach (var command in this.Registered.Keys) {
             this.Plugin.CommandManager.RemoveHandler(command);
         }
@@ -69,25 +73,26 @@ internal class Commands : IDisposable {
         this.RegisteredInternal.Clear();
     }
 
-    private void RegisterOne(string command, Guid id) {
+    private void RegisterLinkshellCommand(string command, Guid id) {
         this.RegisteredInternal[command] = id;
-
-        void Handler(string _, string arguments) {
-            Plugin.Log.Warning("Command handler actually invoked");
-        }
-
-        this.Plugin.CommandManager.AddHandler(command, new CommandInfo(Handler) {
+        this.Plugin.CommandManager.AddHandler(command, new CommandInfo(LinkshellCommandHandler) {
             ShowInHelp = false,
         });
     }
 
-    internal void SendMessage(Guid id, byte[] bytes) {
+    private void LinkshellCommandHandler(string command, string arguments)
+    {
+        Plugin.Log.Warning($"Linkshell command handler actually executed: {command} {arguments}");
+    }
+
+    internal void SendMessage(Guid id, ReadOnlySpan<byte> bytes) {
         if (!this.Plugin.ConfigInfo.Channels.TryGetValue(id, out var info)) {
             this.Plugin.ChatGui.PrintError("ExtraChat Linkshell information could not be loaded.");
             return;
         }
-
+        
         var message = this.Plugin.GameFunctions.ResolvePayloads(bytes);
+        
         var ciphertext = SecretBox.Encrypt(info.SharedSecret, message);
         Task.Run(async () => await this.Plugin.Client.SendMessage(id, ciphertext));
     }

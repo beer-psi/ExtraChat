@@ -27,6 +27,8 @@ public class RequestKindFormatter : IMessagePackFormatter<RequestKind> {
             RequestKind.Version => "version",
             RequestKind.DeleteAccount => "delete_account",
             RequestKind.AllowInvites => "allow_invites",
+            RequestKind.Secrets => "secrets",
+            RequestKind.SendSecrets => "send_secrets",
             _ => throw new ArgumentOutOfRangeException(nameof(value)),
         };
 

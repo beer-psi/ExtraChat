@@ -3,11 +3,15 @@ using System.Numerics;
 using System.Threading.Channels;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game;
+using Dalamud.Game.Text;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using Lumina.Excel.Sheets;
 using Channel = System.Threading.Channels.Channel;
 
@@ -22,6 +26,11 @@ internal class PluginUi : IDisposable {
     internal bool Visible;
 
     private readonly List<(uint Id, Vector4 Abgr)> _uiColours;
+
+    private static readonly NotificationSound[] NotificationSounds = Enum.GetValues<NotificationSound>();
+    private static readonly string[] NotificationSoundNames = Enum.GetValues<NotificationSound>()
+        .Select(s => s == NotificationSound.None ? "Disabled" : $"Type {(uint)s}")
+        .ToArray();
 
     internal PluginUi(Plugin plugin) {
         this.Plugin = plugin;
@@ -233,6 +242,48 @@ internal class PluginUi : IDisposable {
 
             if (ImGui.CollapsingHeader($"{name}###{id}-settings")) {
                 ImGui.PushID($"{id}-settings");
+                
+                var contained = this.Plugin.ConfigInfo.ChannelChannels.TryGetValue(id, out var output);
+                var preview = contained ? $"{output}" : "Default";
+                var isLinkshellOutput = contained
+                                        && output is XivChatType.CrossLinkShell1
+                                            or >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8
+                                            or >= XivChatType.Ls1 and <= XivChatType.Ls8;
+
+                if (isLinkshellOutput)
+                    ImGui.TextColored(
+                        ImGuiColors.WarningForeground,
+                        "When using a Linkshell as an output channel, color, chat marker\nand notification sound follow vanilla Log Window Settings");
+                
+                ImGui.TextUnformatted("Output channel");
+                ImGui.SetNextItemWidth(-1);
+                
+                if (ImGui.BeginCombo("##output-channel", preview)) {
+                    if (ImGui.Selectable("Default", !contained)) {
+                        this.Plugin.ConfigInfo.ChannelChannels.Remove(id);
+                        anyChanged = true;
+                    }
+                
+                    foreach (var channel in Enum.GetValues<XivChatType>())
+                    {
+                        if (channel != XivChatType.Debug
+                            && channel != XivChatType.Echo
+                            && channel != XivChatType.CrossLinkShell1
+                            && channel is (< XivChatType.CrossLinkShell2 or > XivChatType.CrossLinkShell8)
+                                and (< XivChatType.Ls1 or > XivChatType.Ls8)
+                           )
+                            continue;
+
+                        if (ImGui.Selectable($"{channel}", contained && output == channel)) {
+                            this.Plugin.ConfigInfo.ChannelChannels[id] = channel;
+                            anyChanged = true;
+                        }
+                    }
+                
+                    ImGui.EndCombo();
+                }
+
+                ImGui.Spacing();
 
                 ImGui.TextUnformatted("Number");
                 channelOrder.TryGetValue(id, out var refOrder);
@@ -255,91 +306,92 @@ internal class PluginUi : IDisposable {
                 }
 
                 ImGui.Spacing();
-
-                if (ImGuiUtil.IconButton(FontAwesomeIcon.Undo, "colour-reset", "Reset")) {
-                    anyChanged = true;
-                    this.Plugin.ConfigInfo.ChannelColors.Remove(id);
-                }
-
-                ImGui.SameLine();
-
-                var colourKey = this.Plugin.ConfigInfo.GetUiColour(id);
-                var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRowOrDefault(colourKey)?.Dark ?? 0xff5ad0ff;
-                var vec = ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(colour));
-
-                const string colourPickerId = "linkshell-colour-picker";
-
-                if (ImGui.ColorButton("Linkshell colour", vec, ImGuiColorEditFlags.NoTooltip)) {
-                    ImGui.OpenPopup(colourPickerId);
-                }
-
-                ImGui.SameLine();
-
-                ImGui.TextUnformatted("Linkshell colour");
-
-                if (ImGui.BeginPopup(colourPickerId)) {
-                    var i = 0;
-
-                    foreach (var (uiColour, fg) in this._uiColours) {
-                        if (ImGui.ColorButton($"Colour {uiColour}", fg, ImGuiColorEditFlags.NoTooltip)) {
-                            this.Plugin.ConfigInfo.ChannelColors[id] = (ushort) uiColour;
-                            anyChanged = true;
-                            ImGui.CloseCurrentPopup();
-                        }
-
-                        if (i >= 11) {
-                            i = 0;
-                        } else {
-                            ImGui.SameLine();
-                            i += 1;
-                        }
+                
+                using (ImRaii.Disabled(isLinkshellOutput))
+                {
+                    if (ImGuiUtil.IconButton(FontAwesomeIcon.Undo, "colour-reset", "Reset")) {
+                        anyChanged = true;
+                        this.Plugin.ConfigInfo.ChannelColors.Remove(id);
                     }
 
-                    ImGui.EndPopup();
+                    ImGui.SameLine();
+
+                    var colourKey = this.Plugin.ConfigInfo.GetUiColour(id);
+                    var colour = this.Plugin.DataManager.GetExcelSheet<UIColor>()!.GetRowOrDefault(colourKey)?.Dark ?? 0xff5ad0ff;
+                    var vec = ImGui.ColorConvertU32ToFloat4(ColourUtil.RgbaToAbgr(colour));
+                    
+                    const string colourPickerId = "linkshell-colour-picker";
+
+                    if (ImGui.ColorButton("Linkshell colour", vec, ImGuiColorEditFlags.NoTooltip)) {
+                        ImGui.OpenPopup(colourPickerId);
+                    }
+
+                    ImGui.SameLine();
+
+                    ImGui.TextUnformatted("Linkshell colour");
+                    
+                    if (ImGui.BeginPopup(colourPickerId)) {
+                        var i = 0;
+
+                        foreach (var (uiColour, fg) in this._uiColours) {
+                            if (ImGui.ColorButton($"Colour {uiColour}", fg, ImGuiColorEditFlags.NoTooltip)) {
+                                this.Plugin.ConfigInfo.ChannelColors[id] = (ushort) uiColour;
+                                anyChanged = true;
+                                ImGui.CloseCurrentPopup();
+                            }
+
+                            if (i >= 11) {
+                                i = 0;
+                            } else {
+                                ImGui.SameLine();
+                                i += 1;
+                            }
+                        }
+
+                        ImGui.EndPopup();
+                    }
+                    
+                    ImGui.Spacing();
+
+                    var hint = $"ECLS{refOrder}";
+                    if (!this.Plugin.ConfigInfo.ChannelMarkers.TryGetValue(id, out var marker)) {
+                        marker = string.Empty;
+                    }
+
+                    ImGui.TextUnformatted("Chat marker");
+                    ImGui.SetNextItemWidth(-1);
+                    if (ImGui.InputTextWithHint("##marker", hint, ref marker, 16)) {
+                        anyChanged = true;
+                        if (string.IsNullOrWhiteSpace(marker)) {
+                            this.Plugin.ConfigInfo.ChannelMarkers.Remove(id);
+                        } else {
+                            this.Plugin.ConfigInfo.ChannelMarkers[id] = marker;
+                        }
+                    }
                 }
 
                 ImGui.Spacing();
-
-                var hint = $"ECLS{refOrder}";
-                if (!this.Plugin.ConfigInfo.ChannelMarkers.TryGetValue(id, out var marker)) {
-                    marker = string.Empty;
-                }
-
-                ImGui.TextUnformatted("Chat marker");
+                
+                ImGui.TextUnformatted("Notification sound");
                 ImGui.SetNextItemWidth(-1);
-                if (ImGui.InputTextWithHint("##marker", hint, ref marker, 16)) {
-                    anyChanged = true;
-                    if (string.IsNullOrWhiteSpace(marker)) {
-                        this.Plugin.ConfigInfo.ChannelMarkers.Remove(id);
-                    } else {
-                        this.Plugin.ConfigInfo.ChannelMarkers[id] = marker;
+
+                this.Plugin.ConfigInfo.ChannelSoundEffects.TryGetValue(id, out var notificationSound);
+
+                var soundIdx = NotificationSounds.IndexOf(notificationSound);
+
+                using (ImRaii.Disabled(isLinkshellOutput))
+                {
+                    if (ImGui.Combo("##sound", ref soundIdx, NotificationSoundNames))
+                    {
+                        notificationSound = NotificationSounds[soundIdx];
+                        this.Plugin.ConfigInfo.ChannelSoundEffects[id] = notificationSound;
+                        anyChanged = true;
+
+                        if (notificationSound != NotificationSound.None)
+                            UIGlobals.PlayChatSoundEffect((uint)notificationSound);
                     }
                 }
-
-                // ImGui.Spacing();
-                //
-                // ImGui.TextUnformatted("Output channel");
-                // ImGui.SetNextItemWidth(-1);
-                //
-                // var contained = this.Plugin.ConfigInfo.ChannelChannels.TryGetValue(id, out var output);
-                // var preview = contained ? $"{output}" : "Default";
-                //
-                // if (ImGui.BeginCombo("##output-channel", preview)) {
-                //     if (ImGui.Selectable("Default", !contained)) {
-                //         this.Plugin.ConfigInfo.ChannelChannels.Remove(id);
-                //         anyChanged = true;
-                //     }
-                //
-                //     foreach (var channel in Enum.GetValues<XivChatType>()) {
-                //         if (ImGui.Selectable($"{channel}", contained && output == channel)) {
-                //             this.Plugin.ConfigInfo.ChannelChannels[id] = channel;
-                //             anyChanged = true;
-                //         }
-                //     }
-                //
-                //     ImGui.EndCombo();
-                // }
-
+                
                 ImGui.PopID();
             }
         }

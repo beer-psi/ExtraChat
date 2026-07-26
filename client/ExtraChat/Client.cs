@@ -12,12 +12,13 @@ using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Ui;
 using ExtraChat.Util;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using Lumina.Excel.Sheets;
 using Channel = ExtraChat.Protocol.Channels.Channel;
 
 namespace ExtraChat;
 
-internal class Client : IDisposable {
+internal class Client : IAsyncDisposable {
     private const int IsUpPingNumber = 42069;
 
     internal enum State {
@@ -38,6 +39,7 @@ internal class Client : IDisposable {
     private bool _active = true;
     private uint _number = 1;
     private bool _wasConnected;
+    private bool _wasImproperlyClosed;
 
     private KeyPair KeyPair { get; }
 
@@ -62,11 +64,27 @@ internal class Client : IDisposable {
         }
     }
 
-    public void Dispose() {
+    public async ValueTask DisposeAsync()
+    {
         this.Plugin.ClientState.Login -= this.Login;
         this.Plugin.ClientState.Logout -= this.Logout;
 
         this._active = false;
+        
+        if (this.WebSocket.State is WebSocketState.Connecting or WebSocketState.Open)
+            try
+            {
+                await this.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+            }
+            catch (WebSocketException e)
+            {
+                Plugin.Log.Debug(e, "Failed to close WebSocket before disabling plugin");
+            }
+            catch (OperationCanceledException e)
+            {
+                Plugin.Log.Debug(e, "Failed to close WebSocket before disabling plugin");
+            }
+        
         this.WebSocket.Dispose();
         this._waitersSemaphore.Dispose();
     }
@@ -94,12 +112,45 @@ internal class Client : IDisposable {
 
         Task.Run(async () => {
             while (this._active) {
-                try {
+                try
+                {
                     await this.Loop();
-                } catch (Exception ex) {
+                }
+                catch (WebSocketClosure ex)
+                {
+                    Plugin.Log.Warning(ex, "WebSocket closed");
+
+                    this._wasImproperlyClosed =
+                        (this._active && ex.CloseStatus == WebSocketCloseStatus.NormalClosure)
+                        || ex.CloseStatus == (WebSocketCloseStatus)1006;
+
+                    if (!this._wasImproperlyClosed)
+                        break;
+                }
+                catch (WebSocketException ex)
+                {
+                    Plugin.Log.Warning(ex, "WebSocket error occured");
+
+                    this._wasImproperlyClosed =
+                        this._active && ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely;
+
+                    if (!this._wasImproperlyClosed)
+                        break;
+                }
+                catch (OperationCanceledException ex) // this happens when logging out since ws is aborted
+                {
+                    Plugin.Log.Warning(ex, "WebSocket operation canceled");
+                    
+                    if (!this._active)
+                        break;
+                }
+                catch (Exception ex)
+                {
                     Plugin.Log.Error(ex, "Error in client loop");
-                    if (this._wasConnected) {
-                        this.Plugin.ChatGui.Print(new XivChatEntry {
+                    if (this._wasConnected)
+                    {
+                        this.Plugin.ChatGui.Print(new XivChatEntry
+                        {
                             Message = "Disconnected from ExtraChat. Trying to reconnect.",
                             Type = XivChatType.Urgent,
                         });
@@ -163,11 +214,16 @@ internal class Client : IDisposable {
 
             if (await this.Authenticate()) {
                 this._wasConnected = true;
-                this.Plugin.ChatGui.Print(new XivChatEntry {
-                    Message = "Connected to ExtraChat.",
-                    Type = XivChatType.Notice,
-                });
 
+                if (this._wasImproperlyClosed)
+                    this._wasImproperlyClosed = false;
+                else
+                    this.Plugin.ChatGui.Print(new XivChatEntry
+                    {
+                        Message = "Connected to ExtraChat.",
+                        Type = XivChatType.Notice,
+                    });
+                
                 await this.ListAll();
             }
         });
@@ -882,6 +938,9 @@ internal class Client : IDisposable {
                     this.Plugin.SaveConfig();
                 }
 
+                if (this.Plugin.ConfigInfo.CurrentChannel != Guid.Empty)
+                    this.Plugin.GameFunctions.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel;
+
                 this.Plugin.SaveConfig();
                 break;
             }
@@ -944,7 +1003,8 @@ internal class Client : IDisposable {
         if (!config.Channels.TryGetValue(resp.Channel, out var info)) {
             return;
         }
-
+        
+        var outputChannel = this.Plugin.ConfigInfo.ChannelChannels.GetValueOrDefault(resp.Channel, XivChatType.Debug);
         var message = SeString.Parse(SecretBox.Decrypt(info.SharedSecret, resp.Message));
 
         var output = new SeStringBuilder();
@@ -952,53 +1012,59 @@ internal class Client : IDisposable {
         output.Add(PayloadUtil.CreateTagPayload(resp.Channel));
         output.Add(RawPayload.LinkTerminator);
 
-        var colour = config.GetUiColour(resp.Channel);
-        output.AddUiForeground(colour);
-
-        var marker = config.GetMarker(resp.Channel) ?? "ECLS?";
-
+        var isOutputLinkshell = outputChannel == XivChatType.CrossLinkShell1
+                                || ((ushort)XivChatType.CrossLinkShell2 <= (ushort)outputChannel &&
+                                    (ushort)outputChannel <= (ushort)XivChatType.CrossLinkShell8)
+                                || ((ushort)XivChatType.Ls1 <= (ushort)outputChannel &&
+                                    (ushort)outputChannel <= (ushort)XivChatType.Ls8);
         var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
-
-        output.AddText($"[{marker}]<");
-        if (isSelf) {
-            output.AddText(resp.Sender);
-        } else {
-            output.Add(new PlayerPayload(resp.Sender, resp.World));
-        }
-
         var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
         var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.RowId == resp.World;
-        if (!isSelf && !homeWorldsSameAndOnHomeWorld) {
-            output.AddIcon(BitmapFontIcon.CrossWorld);
+        var sender = new SeStringBuilder();
+
+        if (isSelf)
+            sender.Append(resp.Sender);
+        else
+            sender.Add(new PlayerPayload(resp.Sender, resp.World));
+        
+        if (!isSelf && !homeWorldsSameAndOnHomeWorld)
+        {
+            sender.AddIcon(BitmapFontIcon.CrossWorld);
+           
             var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name.ToDalamudString();
-            if (world != null) {
-                foreach (var payload in world.Payloads) {
-                    output.Add(payload);
-                }
-            } else {
-                output.AddText($"[Unknown {resp.World}]");
-            }
+
+            if (world != null)
+                sender.Append(world);
+            else
+                sender.AddText($"[Unknown {resp.World}]");
         }
 
-        output.AddText("> ");
+        if (!isOutputLinkshell)
+        {
+            var colour = config.GetUiColour(resp.Channel);
+            output.AddUiForeground(colour);
 
-        foreach (var payload in message.Payloads) {
-            output.Add(payload);
+            var marker = config.GetMarker(resp.Channel) ?? "ECLS?";
+
+            output.AddText($"[{marker}]<");
+            output.Append(sender.BuiltString);
+            output.AddText("> ");
         }
 
-        output.AddUiForegroundOff();
+        output.Append(message);
 
-        if (!this.Plugin.ConfigInfo.ChannelChannels.TryGetValue(resp.Channel, out var outputChannel)) {
-            outputChannel = XivChatType.Debug;
-        }
-
+        if (!isOutputLinkshell)
+            output.AddUiForegroundOff();
+        
         this.Plugin.ChatGui.Print(new XivChatEntry {
-            Message = output.Build(),
-            Name = isSelf
-                ? resp.Sender
-                : new SeString(new PlayerPayload(resp.Sender, resp.World)),
             Type = outputChannel,
+            Name = sender.BuiltString,
+            Message = output.Build(),
+            Silent = isSelf,
         });
+
+        if (!isSelf && !isOutputLinkshell && this.Plugin.ConfigInfo.ChannelSoundEffects.TryGetValue(resp.Channel, out var notificationSound))
+            UIGlobals.PlayChatSoundEffect((uint)notificationSound);
     }
 
     private void HandleInvited(InvitedResponse info) {
