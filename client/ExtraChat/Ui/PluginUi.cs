@@ -305,6 +305,14 @@ internal class PluginUi : IDisposable {
                     this.Plugin.Commands.ReregisterAll();
                 }
 
+                this.Plugin.ConfigInfo.ChannelPlaySoundEffectMacros.TryGetValue(id, out var playSe);
+
+                if (ImGui.Checkbox("Enable <se.#> sound effects", ref playSe))
+                {
+                    this.Plugin.ConfigInfo.ChannelPlaySoundEffectMacros[id] = playSe;
+                    anyChanged = true;
+                }
+
                 ImGui.Spacing();
                 
                 using (ImRaii.Disabled(isLinkshellOutput))

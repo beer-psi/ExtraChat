@@ -4,16 +4,9 @@ description: |-
   ExtraChat adds end-to-end encrypted, cross-data-centre, unlimited linkshells
   to the game. (Fork of official plugin with features and some fixes)
 changelog: |-
-  # Features
-  - Allow setting a notification sound on messages received.
-  - Allow specifying a LS or CWLS as the output channel.
-    * Linkshell colour, chat marker and notification sound follow in-game settings, not ExtraChat settings.
-  
   # Fixes
-  - Fix requesting secrets.
-  - Restore ECLS chat mode if the user was on ECLS chat mode before logging out or disabling plugin.
-  - Gracefully handle server-side disconnect errors.
-  - Fixes /reply going to ExtraChat linkshells instead of the intended recipients.
+  - Enable placeholders like <se.#> to work.
+    * You can choose whether to play them on a linkshell-by-linkshell basis in settings.
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false

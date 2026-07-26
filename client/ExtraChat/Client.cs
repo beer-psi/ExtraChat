@@ -1005,7 +1005,10 @@ internal class Client : IAsyncDisposable {
         }
         
         var outputChannel = this.Plugin.ConfigInfo.ChannelChannels.GetValueOrDefault(resp.Channel, XivChatType.Debug);
-        var message = SeString.Parse(SecretBox.Decrypt(info.SharedSecret, resp.Message));
+        var message = SeString.Parse(
+            this.Plugin.GameFunctions.ProcessFixedMacros(
+                SecretBox.Decrypt(info.SharedSecret, resp.Message),
+                this.Plugin.ConfigInfo.ShouldPlaySoundEffectMacros(resp.Channel)));
 
         var output = new SeStringBuilder();
         // add a tag payload for filtering

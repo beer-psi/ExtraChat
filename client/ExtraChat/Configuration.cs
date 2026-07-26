@@ -43,6 +43,7 @@ internal class ConfigInfo {
     public Dictionary<Guid, string> ChannelMarkers = new();
     public Dictionary<Guid, XivChatType> ChannelChannels = new();
     public Dictionary<Guid, NotificationSound> ChannelSoundEffects = new();
+    public Dictionary<Guid, bool> ChannelPlaySoundEffectMacros = new();
     public int TutorialStep;
     public bool AllowInvites = true;
 
@@ -146,6 +147,11 @@ internal class ConfigInfo {
 
     internal void UpdateChannel(SimpleChannel channel) {
         this.UpdateChannel(channel.Id, channel.Name);
+    }
+
+    internal bool ShouldPlaySoundEffectMacros(Guid id)
+    {
+        return this.ChannelPlaySoundEffectMacros.TryGetValue(id, out var condition) && condition;
     }
 }
 

@@ -1,7 +1,5 @@
 ﻿using System.Buffers;
 using System.Text;
-using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Memory;
 using Dalamud.Utility.Signatures;
@@ -20,16 +18,12 @@ internal unsafe class GameFunctions : IDisposable {
 
     // all this comes from 6.15: 751AF0
 
-    // [Signature("E8 ?? ?? ?? ?? 48 8B D0 48 8D 4D ?? E8 ?? ?? ?? ?? 41 B4")]
-    // private readonly delegate* unmanaged<PronounModule*, Utf8String*, Utf8String*> _step1;
-
-    // Client::UI::Misc::PronounModule::???
-    // https://github.com/Caraxi/SimpleTweaksPlugin/blob/main/Tweaks/Chat/ChatSoundsEverywhere.cs
+    // Processes <fixed(...)> macros in the provided SeString, then convert them back to a user-visible chat placeholder.
+    // e.g. 02 2E 04 C9 06 01 03 "<fixed(200,5,0)>" will be converted back to "<se.1>".
+    // This function may also play the sound effect if the third argument (2nd argument except this) is nonzero.
+    // This can be found in ShellChatCommandTell.ExecuteCommand near the end of the IsInMordionGaol branch.
     [Signature("E8 ?? ?? ?? ?? 44 88 74 24 ?? 4C 8D 45")]
-    private readonly delegate* unmanaged<PronounModule*, Utf8String*, byte, Utf8String*> _step2;
-    
-    // [Signature("E8 ?? ?? ?? ?? 49 8B 45 00 49 8B CD FF 50 68")]
-    // private readonly delegate* unmanaged<RaptureShellModule*, int, uint, nint, byte, nint> _setChatChannel;
+    private readonly delegate* unmanaged<PronounModule*, Utf8String*, byte, Utf8String*> _processFixedMacros;
     
     // Client::UI::Shell::RaptureShellModule::SetChatChannel
     [Signature("E8 ?? ?? ?? ?? 33 C0 EB ?? 85 D2", DetourName = nameof(SetChatChannelDetour))]
@@ -100,34 +94,27 @@ internal unsafe class GameFunctions : IDisposable {
         }
 
         var module = UIModule.Instance()->GetPronounModule();
-        
-        Utf8String* str;
-        if (input[^1] != 0)
-        {
-            var replacement = ArrayPool<byte>.Shared.Rent(input.Length + 1);
-            
-            input.CopyTo(replacement);
-            replacement[input.Length] = 0;
-            str = Utf8String.FromSequence(replacement);
-            
-            ArrayPool<byte>.Shared.Return(replacement);
-        }
-        else
-            str = Utf8String.FromSequence(input);
-
-        var postStep1 = module->ProcessString(str, true);
-        var postStep2 = this._step2(module, postStep1, 1);
-
-        var buf = postStep2->AsSpan().ToArray();
+        var str = input.ToUtf8String();
+        var result = module->ProcessString(str, true);
+        var buf = result->AsSpan().ToArray();
 
         str->Dtor(true);
 
-        // postStep1->Dtor();
-        // IMemorySpace.Free(postStep1);
+        return buf;
+    }
 
-        // game dies if you do this
-        // postStep2->Dtor();
-        // IMemorySpace.Free(postStep2);
+    internal byte[] ProcessFixedMacros(ReadOnlySpan<byte> input, bool playSoundEffects)
+    {
+        if (input.Length == 0) {
+            return input.ToArray();
+        }
+        
+        var pm = UIModule.Instance()->GetPronounModule();
+        var str = input.ToUtf8String();
+        var result = _processFixedMacros(pm, str, (byte)(playSoundEffects ? 1 : 0));
+        var buf = result->AsSpan().ToArray();
+
+        str->Dtor(true);
 
         return buf;
     }

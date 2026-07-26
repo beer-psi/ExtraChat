@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Net.WebSockets;
 using ExtraChat.Protocol;
+using FFXIVClientStructs.FFXIV.Client.System.String;
 using MessagePack;
 
 namespace ExtraChat;
@@ -49,6 +50,25 @@ public static class Ext {
         
         ArrayPool<byte>.Shared.Return(bytes);
         return message;
+    }
+
+    public static unsafe Utf8String* ToUtf8String(this ReadOnlySpan<byte> input)
+    {
+        Utf8String* str;
+        if (input[^1] != 0)
+        {
+            var replacement = ArrayPool<byte>.Shared.Rent(input.Length + 1);
+            
+            input.CopyTo(replacement);
+            replacement[input.Length] = 0;
+            str = Utf8String.FromSequence(replacement);
+            
+            ArrayPool<byte>.Shared.Return(replacement);
+        }
+        else
+            str = Utf8String.FromSequence(input);
+
+        return str;
     }
 }
 
