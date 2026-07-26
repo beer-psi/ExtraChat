@@ -12,11 +12,11 @@ jobs:
     release:
         uses: "beer-psi/DalamudPlugins/.github/workflows/reusable_create_release.yaml@trunk"
         with:
-            internal_name: "ExtraChat"
+            internal_name: "ExtraChatFork"
             solution_name: "ExtraChat"
             solution_path: "client/ExtraChat.sln"
             build_configuration: "Release"
-            build_artifacts_path: "./client/ExtraChat/bin/Release/ExtraChat"
+            build_artifacts_path: "./client/ExtraChat/bin/Release/ExtraChatFork"
             personal_plugin_repo: "beer-psi/DalamudPlugins"
             personal_plugin_repo_branch: "trunk"
         secrets: "inherit"

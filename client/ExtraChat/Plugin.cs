@@ -94,6 +94,14 @@ public class Plugin : IAsyncDalamudPlugin {
     public Plugin() {
         SodiumInit.Init();
         WorldUtil.Initialise(this.DataManager!);
+
+        var configDir = Path.Join(this.Interface!.GetPluginConfigDirectory(), "..");
+        var originalExtraChat = Path.Join(configDir, "ExtraChat.json");
+        var ourExtraChat = Path.Join(configDir, "ExtraChatFork.json");
+
+        if (Path.Exists(originalExtraChat) && !Path.Exists(ourExtraChat))
+            File.Copy(originalExtraChat, ourExtraChat);
+        
         this.Config = this.Interface!.GetPluginConfig() as Configuration ?? new Configuration();
         this.Commands = new Commands(this);
         this.Ipc = new Ipc(this);
