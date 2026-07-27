@@ -178,8 +178,8 @@ internal unsafe class GameFunctions : IDisposable {
         {
             var channelColor = this.Plugin.ConfigInfo.GetUiColour(this.OverrideChannel);
 
-            chatEntryColor = this.Plugin.DataManager.GetExcelSheet<UIColor>().GetRowOrDefault(channelColor)?.Dark
-                             ?? 0xFF5AD0FF;
+            chatEntryColor = (this.Plugin.DataManager.GetExcelSheet<UIColor>().GetRowOrDefault(channelColor)?.Dark
+                              ?? 0xFF5AD0FF) >> 8;
         }
             
         // 1 = displayed chat name

@@ -6,6 +6,9 @@ description: |-
 changelog: |-
   # Features
   - Make chat entry text color match configured linkshell color.
+  
+  # Fixes
+  - Fix chat entry text color for ExtraChat linkshells that don't output to in-game LS or CWLS.
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false
