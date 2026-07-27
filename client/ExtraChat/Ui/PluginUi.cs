@@ -245,10 +245,7 @@ internal class PluginUi : IDisposable {
                 
                 var contained = this.Plugin.ConfigInfo.ChannelChannels.TryGetValue(id, out var output);
                 var preview = contained ? $"{output}" : "Default";
-                var isLinkshellOutput = contained
-                                        && output is XivChatType.CrossLinkShell1
-                                            or >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8
-                                            or >= XivChatType.Ls1 and <= XivChatType.Ls8;
+                var isLinkshellOutput = contained && output.IsLinkshell();
 
                 if (isLinkshellOutput)
                     ImGui.TextColored(

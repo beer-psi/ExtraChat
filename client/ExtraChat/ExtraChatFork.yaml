@@ -5,11 +5,7 @@ description: |-
   to the game. (Fork of official plugin with features and some fixes)
 changelog: |-
   # Features
-  - /ecl is an extra alias for /ecl1.
-  
-  # Fixes
-  - Fix the first line in a macro being sent to another chat instead of the ECLS.
-  - Fix received messages being garbled or out of order if they come in too fast.
+  - Make chat entry text color match configured linkshell color.
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false

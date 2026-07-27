@@ -1,5 +1,9 @@
 ﻿
+using System.Runtime.CompilerServices;
 using System.Text;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
+using Dalamud.Game.Text;
 using Dalamud.Hooking;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -7,8 +11,10 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Client.UI.Shell;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using FFXIVClientStructs.FFXIV.Component.Shell;
 using InteropGenerator.Runtime;
+using Lumina.Excel.Sheets;
 
 namespace ExtraChat;
 
@@ -28,11 +34,6 @@ internal unsafe class GameFunctions : IDisposable {
     [Signature("E8 ?? ?? ?? ?? 33 C0 EB ?? 85 D2", DetourName = nameof(SetChatChannelDetour))]
     private Hook<SetChatChannelDelegate> SetChatChannelHook { get; init; }
     private delegate void SetChatChannelDelegate(RaptureShellModule* module, uint channel);
-
-    // Client::UI::Agent::AgentChatLog::???
-    [Signature("48 89 5C 24 ?? 57 48 83 EC 20 48 8B D9 40 32 FF 48 8B 49 10", DetourName = nameof(ShouldDoNameLookupDetour))]
-    private Hook<ShouldDoNameLookupDelegate> ShouldDoNameLookupHook { get; init; }
-    private delegate byte ShouldDoNameLookupDelegate(AgentChatLog* agent);
     
     // Component::Shell::ShellCommandModule::??
     // Called by ShellCommandModule::ExecuteCommandInner and RaptureShellModule::Update on every message/macro line
@@ -42,11 +43,9 @@ internal unsafe class GameFunctions : IDisposable {
     private Hook<ProcessCommandWithContext> ProcessCommandWithContextHook { get; init; }
     private delegate void ProcessCommandWithContext(
         ShellCommandModule* self, Utf8String* command, UIModule* uiModule, ShellCommandInterface.CommandContext* ctx, int evaluateTextCommandReturn);
-    
-    private Hook<AgentChatLog.Delegates.ChangeChannelName> ChangeChannelNameHook { get; init; }
 
     #pragma warning disable CS0618
-    internal Guid OverrideChannel
+    private Guid OverrideChannel
     {
         get;
         set
@@ -58,38 +57,37 @@ internal unsafe class GameFunctions : IDisposable {
         }
     }
 #pragma warning restore CS0618
-    
-    private bool _shouldForceNameLookup;
 
-    internal GameFunctions(Plugin plugin) {
+    internal GameFunctions(Plugin plugin, Client client) {
         this.Plugin = plugin;
         this.Plugin.GameInteropProvider.InitializeFromAttributes(this);
         
-        this.ChangeChannelNameHook =
-            Plugin.GameInteropProvider.HookFromAddress<AgentChatLog.Delegates.ChangeChannelName>(
-                (nint)AgentChatLog.MemberFunctionPointers.ChangeChannelName, ChangeChannelNameDetour);
+        this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRefresh, "ChatLog", OnAddonChatLogPreRefresh);
         
         this.SetChatChannelHook!.Enable();
-        this.ChangeChannelNameHook!.Enable();
-        this.ShouldDoNameLookupHook!.Enable();
         this.ProcessCommandWithContextHook!.Enable();
 
-        if (this.Plugin.ConfigInfo.CurrentChannel != Guid.Empty)
-        {
-            this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel;
-            this.UpdateChat();
-        }
+        client.StatusChanged += OnClientStatusChanged;
     }
 
-    public void Dispose() {
+    public void Dispose()
+    {
+        this.Plugin.Client.StatusChanged -= OnClientStatusChanged;
+        
         this.ProcessCommandWithContextHook.Dispose();
-        this.ShouldDoNameLookupHook.Dispose();
-        this.ChangeChannelNameHook.Dispose();
         this.SetChatChannelHook.Dispose();
+        
+        this.Plugin.AddonLifecycle.UnregisterListener(OnAddonChatLogPreRefresh);
     }
 
-    internal void ResetOverride() {
+    internal void ResetOverride(bool save = false) {
         this.OverrideChannel = Guid.Empty;
+
+        if (save)
+        {
+            this.Plugin.ConfigInfo.CurrentChannel = this.OverrideChannel;
+            this.Plugin.SaveConfig();
+        }
     }
     
     private readonly Lock _pronounModuleLock = new();
@@ -131,6 +129,65 @@ internal unsafe class GameFunctions : IDisposable {
         str->Dtor(true);
 
         return buf;
+    }
+    
+    private void UpdateChat() {
+        var agent = UIModule.Instance()->GetAgentModule()->GetAgentByInternalId(AgentId.ChatLog);
+        agent->VirtualTable->Update(agent, 0);
+    }
+    
+    private void OnClientStatusChanged(object? sender, Client.State newStatus)
+    {
+        if (newStatus == Client.State.Connected && this.Plugin.ConfigInfo.CurrentChannel != Guid.Empty)
+            this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel;
+
+        if (newStatus == Client.State.Disconnected)
+            this.OverrideChannel = Guid.Empty;
+    }
+
+    private void OnAddonChatLogPreRefresh(AddonEvent type, AddonArgs args)
+    {
+        if (args is not AddonRefreshArgs refreshArgs || this.OverrideChannel == Guid.Empty)
+            return;
+        
+        if (refreshArgs.AtkValueCount <= 37)
+        {
+            Plugin.Log.Error($"Expected refresh args for AddonChatLog to have more than 37 values, got {refreshArgs.AtkValueCount}.");
+            return;
+        }
+
+        var span = new Span<AtkValue>((AtkValue*)refreshArgs.AtkValues, (int)refreshArgs.AtkValueCount);
+        var outputType = this.Plugin.ConfigInfo.GetOutputChannel(this.OverrideChannel);
+        var name = this.Plugin.ConfigInfo.GetFullName(this.OverrideChannel);
+        uint chatEntryColor;
+
+        if (outputType.IsLinkshell())
+        {
+            var rtm = UIModule.Instance()->GetRaptureTextModule();
+            chatEntryColor = outputType switch
+            {
+                >= XivChatType.Ls1 and <= XivChatType.Ls8 => Unsafe.As<int, uint>(
+                    ref rtm->GlobalParameters[(long)outputType + 1].IntValue),
+                XivChatType.CrossLinkShell1 => Unsafe.As<int, uint>(ref rtm->GlobalParameters[34].IntValue),
+                >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8 => Unsafe.As<int, uint>(
+                    ref rtm->GlobalParameters[(long)outputType - 18].IntValue),
+                _ => 0x12345678
+            };
+        }
+        else
+        {
+            var channelColor = this.Plugin.ConfigInfo.GetUiColour(this.OverrideChannel);
+
+            chatEntryColor = this.Plugin.DataManager.GetExcelSheet<UIColor>().GetRowOrDefault(channelColor)?.Dark
+                             ?? 0xFF5AD0FF;
+        }
+            
+        // 1 = displayed chat name
+        // 2 = command prefix?
+        // 4 = tab 3 name, 5 = tab 4 name
+        // 8->?? = chat channel options in UI
+        span[1].SetManagedString(Encoding.UTF8.GetBytes("\u3000 " + name + "\0"));
+        span[37].UInt = chatEntryColor;
     }
     
     private void ProcessCommandWithContextDetour(
@@ -218,45 +275,13 @@ internal unsafe class GameFunctions : IDisposable {
         this.Plugin.Commands.SendMessage(sendTo, toSend);
         return false;
     }
-    
-    private void UpdateChat() {
-        this._shouldForceNameLookup = true;
-        var agent = UIModule.Instance()->GetAgentModule()->GetAgentByInternalId(AgentId.ChatLog);
-        agent->VirtualTable->Update(agent, 0);
-    }
 
     private void SetChatChannelDetour(RaptureShellModule* module, uint channel) {
         // avoid potential stack overflow from recursion
         if (this.OverrideChannel != Guid.Empty) {
-            this.OverrideChannel = Guid.Empty;
-            this.Plugin.ConfigInfo.CurrentChannel = this.OverrideChannel;
-            this.Plugin.SaveConfig();
+            this.ResetOverride(true);
         }
 
         this.SetChatChannelHook.Original(module, channel);
-    }
-
-    private CStringPointer ChangeChannelNameDetour(AgentChatLog* agent) {
-        var ret = this.ChangeChannelNameHook.Original(agent);
-
-        if (this.OverrideChannel == Guid.Empty) {
-            return ret;
-        }
-        
-        var name = this.Plugin.ConfigInfo.GetFullName(this.OverrideChannel);
-        fixed (byte* bytesPtr = Encoding.UTF8.GetBytes("\u3000 " + name + "\0")) {
-            agent->ChannelLabel.SetString(bytesPtr);
-        }
-
-        return agent->ChannelLabel.StringPtr;
-    }
-
-    private byte ShouldDoNameLookupDetour(AgentChatLog* agent) {
-        if (this._shouldForceNameLookup) {
-            this._shouldForceNameLookup = false;
-            return 1;
-        }
-
-        return this.ShouldDoNameLookupHook.Original(agent);
     }
 }

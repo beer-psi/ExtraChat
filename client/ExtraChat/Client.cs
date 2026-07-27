@@ -35,7 +35,17 @@ internal class Client : IAsyncDisposable {
 
     private Plugin Plugin { get; }
     private ClientWebSocket WebSocket { get; set; }
-    internal State Status { get; private set; } = State.Disconnected;
+
+    internal State Status
+    {
+        get;
+        private set
+        {
+            field = value;
+            this.StatusChanged?.Invoke(this, field);
+        }
+    } = State.Disconnected;
+
     private bool _active = true;
     private uint _number = 1;
     private bool _wasConnected;
@@ -54,6 +64,8 @@ internal class Client : IAsyncDisposable {
     internal Dictionary<Guid, Channel> InvitedChannels { get; } = new();
     internal Dictionary<Guid, Rank> ChannelRanks { get; } = new();
 
+    public event EventHandler<State>? StatusChanged;
+
     internal Client(Plugin plugin) {
         this.Plugin = plugin;
         this.WebSocket = new ClientWebSocket();
@@ -61,17 +73,10 @@ internal class Client : IAsyncDisposable {
 
         this.Plugin.ClientState.Login += this.Login;
         this.Plugin.ClientState.Logout += this.Logout;
-
-        if (this.Plugin.ClientState.IsLoggedIn) {
-            this.StartLoop();
-        }
     }
 
-    public async ValueTask DisposeAsync()
+    private async ValueTask CloseAsync()
     {
-        this.Plugin.ClientState.Login -= this.Login;
-        this.Plugin.ClientState.Logout -= this.Logout;
-
         this._active = false;
         
         if (this.WebSocket.State is WebSocketState.Connecting or WebSocketState.Open)
@@ -87,6 +92,14 @@ internal class Client : IAsyncDisposable {
             {
                 Plugin.Log.Debug(e, "Failed to close WebSocket before disabling plugin");
             }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        this.Plugin.ClientState.Login -= this.Login;
+        this.Plugin.ClientState.Logout -= this.Logout;
+
+        await this.CloseAsync();
         
         this.WebSocket.Dispose();
         this._waitersSemaphore.Dispose();
@@ -105,9 +118,11 @@ internal class Client : IAsyncDisposable {
     }
 
     internal void StopLoop() {
-        this._active = false;
-        this.WebSocket.Abort();
-        this.Status = State.Disconnected;
+        Task.Run(async () =>
+        {
+            await this.CloseAsync();
+            this.Status = State.Disconnected;
+        });
     }
 
     internal void StartLoop() {
@@ -949,9 +964,6 @@ internal class Client : IAsyncDisposable {
                     this.Plugin.SaveConfig();
                 }
 
-                if (this.Plugin.ConfigInfo.CurrentChannel != Guid.Empty)
-                    this.Plugin.GameFunctions.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel;
-
                 this.Plugin.SaveConfig();
                 break;
             }
@@ -1026,11 +1038,7 @@ internal class Client : IAsyncDisposable {
         output.Add(PayloadUtil.CreateTagPayload(resp.Channel));
         output.Add(RawPayload.LinkTerminator);
 
-        var isOutputLinkshell = outputChannel == XivChatType.CrossLinkShell1
-                                || ((ushort)XivChatType.CrossLinkShell2 <= (ushort)outputChannel &&
-                                    (ushort)outputChannel <= (ushort)XivChatType.CrossLinkShell8)
-                                || ((ushort)XivChatType.Ls1 <= (ushort)outputChannel &&
-                                    (ushort)outputChannel <= (ushort)XivChatType.Ls8);
+        var isOutputLinkshell = outputChannel.IsLinkshell();
         var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
         var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
         var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.RowId == resp.World;

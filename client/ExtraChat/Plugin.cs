@@ -64,6 +64,9 @@ public class Plugin : IAsyncDalamudPlugin {
 
     [PluginService]
     private IToastGui ToastGui { get; init; }
+    
+    [PluginService]
+    internal IAddonLifecycle AddonLifecycle { get; init; }
 
     internal Configuration Config { get; }
     internal ConfigInfo ConfigInfo => this.Config.GetConfig(this.PlayerState.ContentId);
@@ -105,8 +108,8 @@ public class Plugin : IAsyncDalamudPlugin {
         this.Config = this.Interface!.GetPluginConfig() as Configuration ?? new Configuration();
         this.Commands = new Commands(this);
         this.Ipc = new Ipc(this);
-        this.GameFunctions = new GameFunctions(this);
         this.Client = new Client(this);
+        this.GameFunctions = new GameFunctions(this, this.Client);
         this.PluginUi = new PluginUi(this);
 
         this.Integrations = [
@@ -119,12 +122,15 @@ public class Plugin : IAsyncDalamudPlugin {
 
     public Task LoadAsync(CancellationToken token)
     {
+        if (this.ClientState.IsLoggedIn)
+            this.Client.StartLoop();
+
         return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
     {
-        this.GameFunctions.ResetOverride();
+        this.GameFunctions.ResetOverride(false);
 
         this.ContextMenu.OnMenuOpened -= this.OnMenuOpened;
         this.Framework.Update -= this.FrameworkUpdate;
@@ -134,11 +140,11 @@ public class Plugin : IAsyncDalamudPlugin {
             integration.Dispose();
         }
 
-        this.Ipc.Dispose();
-        this.GameFunctions.Dispose();
         this.PluginUi.Dispose();
-        this.Commands.Dispose();
+        this.GameFunctions.Dispose();
         await this.Client.DisposeAsync();
+        this.Ipc.Dispose();
+        this.Commands.Dispose();
         
         GC.SuppressFinalize(this);
     }

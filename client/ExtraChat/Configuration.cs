@@ -153,6 +153,11 @@ internal class ConfigInfo {
     {
         return this.ChannelPlaySoundEffectMacros.TryGetValue(id, out var condition) && condition;
     }
+
+    internal XivChatType GetOutputChannel(Guid id)
+    {
+        return this.ChannelChannels.GetValueOrDefault(id, XivChatType.Debug);
+    }
 }
 
 [Serializable]

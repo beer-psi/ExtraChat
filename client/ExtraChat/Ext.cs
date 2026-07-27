@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Net.WebSockets;
+using Dalamud.Game.Text;
 using ExtraChat.Protocol;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using MessagePack;
@@ -69,6 +70,13 @@ public static class Ext {
             str = Utf8String.FromSequence(input);
 
         return str;
+    }
+
+    public static bool IsLinkshell(this XivChatType chatType)
+    {
+        return chatType is XivChatType.CrossLinkShell1
+            or >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8
+            or >= XivChatType.Ls1 and <= XivChatType.Ls8;
     }
 }
 
