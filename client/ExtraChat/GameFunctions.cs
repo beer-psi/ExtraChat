@@ -8,13 +8,12 @@ using Dalamud.Hooking;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Client.UI.Shell;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using FFXIVClientStructs.FFXIV.Component.Shell;
-using InteropGenerator.Runtime;
 using Lumina.Excel.Sheets;
+using AgentId = FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentId;
 
 namespace ExtraChat;
 
@@ -63,6 +62,7 @@ internal unsafe class GameFunctions : IDisposable {
         this.Plugin.GameInteropProvider.InitializeFromAttributes(this);
         
         this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRefresh, "ChatLog", OnAddonChatLogPreRefresh);
+        this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "ChatLog", OnAddonChatLogPostRefresh);
         
         this.SetChatChannelHook!.Enable();
         this.ProcessCommandWithContextHook!.Enable();
@@ -77,6 +77,7 @@ internal unsafe class GameFunctions : IDisposable {
         this.ProcessCommandWithContextHook.Dispose();
         this.SetChatChannelHook.Dispose();
         
+        this.Plugin.AddonLifecycle.UnregisterListener(OnAddonChatLogPostRefresh);
         this.Plugin.AddonLifecycle.UnregisterListener(OnAddonChatLogPreRefresh);
     }
 
@@ -147,7 +148,10 @@ internal unsafe class GameFunctions : IDisposable {
 
     private void OnAddonChatLogPreRefresh(AddonEvent type, AddonArgs args)
     {
-        if (args is not AddonRefreshArgs refreshArgs || this.OverrideChannel == Guid.Empty)
+        if (args is not AddonRefreshArgs refreshArgs)
+            return;
+        
+        if (this.OverrideChannel == Guid.Empty)
             return;
         
         if (refreshArgs.AtkValueCount <= 37)
@@ -155,8 +159,8 @@ internal unsafe class GameFunctions : IDisposable {
             Plugin.Log.Error($"Expected refresh args for AddonChatLog to have more than 37 values, got {refreshArgs.AtkValueCount}.");
             return;
         }
-
-        var span = new Span<AtkValue>((AtkValue*)refreshArgs.AtkValues, (int)refreshArgs.AtkValueCount);
+        
+        var atkValues = new Span<AtkValue>((AtkValue*)refreshArgs.AtkValues, (int)refreshArgs.AtkValueCount);
         var outputType = this.Plugin.ConfigInfo.GetOutputChannel(this.OverrideChannel);
         var name = this.Plugin.ConfigInfo.GetFullName(this.OverrideChannel);
         uint chatEntryColor;
@@ -164,15 +168,17 @@ internal unsafe class GameFunctions : IDisposable {
         if (outputType.IsLinkshell())
         {
             var rtm = UIModule.Instance()->GetRaptureTextModule();
-            chatEntryColor = outputType switch
+            var chatEntryColorIndex = outputType switch
             {
-                >= XivChatType.Ls1 and <= XivChatType.Ls8 => Unsafe.As<int, uint>(
-                    ref rtm->GlobalParameters[(long)outputType + 1].IntValue),
-                XivChatType.CrossLinkShell1 => Unsafe.As<int, uint>(ref rtm->GlobalParameters[34].IntValue),
-                >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8 => Unsafe.As<int, uint>(
-                    ref rtm->GlobalParameters[(long)outputType - 18].IntValue),
-                _ => 0x12345678
+                >= XivChatType.Ls1 and <= XivChatType.Ls8 => (long)outputType + 1,
+                XivChatType.CrossLinkShell1 => 34,
+                >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8 => (long)outputType - 18,
+                _ => -1,
             };
+
+            chatEntryColor = chatEntryColorIndex != -1
+                ? Unsafe.As<int, uint>(ref rtm->GlobalParameters[chatEntryColorIndex].IntValue)
+                : 0xFF5AD0;
         }
         else
         {
@@ -186,8 +192,23 @@ internal unsafe class GameFunctions : IDisposable {
         // 2 = command prefix?
         // 4 = tab 3 name, 5 = tab 4 name
         // 8->?? = chat channel options in UI
-        span[1].SetManagedString(Encoding.UTF8.GetBytes("\u3000 " + name + "\0"));
-        span[37].UInt = chatEntryColor;
+        atkValues[1].SetManagedString(Encoding.UTF8.GetBytes("\u3000 " + name + "\0"));
+        atkValues[37].UInt = chatEntryColor;
+    }
+
+    private void OnAddonChatLogPostRefresh(AddonEvent type, AddonArgs args)
+    {
+        if (args is not AddonRefreshArgs refreshArgs)
+            return;
+        
+        if (this.OverrideChannel == Guid.Empty)
+            return;
+        
+        var addon = (AddonChatLog*)refreshArgs.Addon.Address;
+        
+        // Deselect the previous chat mode from the dropdown so it doesn't get highlighted in the UI and become
+        // impossible to switch back to through the dropdown
+        addon->ChannelSelectDropDown->DeselectItem();
     }
     
     private void ProcessCommandWithContextDetour(
@@ -226,39 +247,29 @@ internal unsafe class GameFunctions : IDisposable {
         
         var sendTo = this.OverrideChannel;
         var toSend = ReadOnlySpan<byte>.Empty;
-        var messageSpan = command->AsSpan();
+        var commandSpan = command->AsSpan();
         
-        if (messageSpan.Length > 1 && messageSpan[0] == '/') {
+        if (command->Length > 1 && command->StringPtr.Value[0] == '/') {
             sendTo = Guid.Empty;
 
-            var commandOffset = -1;
-
-            for (var i = 0; i < messageSpan.Length; i++)
-            {
-                if (messageSpan[i] == 0 || char.IsWhiteSpace((char)messageSpan[i]))
-                {
-                    commandOffset = i;
-                    break;
-                }
-            }
+            var commandOffset = commandSpan.IndexOfAny(" "u8, "\u3000"u8);
 
             if (commandOffset == -1)
-                commandOffset = messageSpan.Length;
-
-            var commandName = Encoding.UTF8.GetString(messageSpan[..commandOffset]);
-
+                commandOffset = command->Length;
+            
+            var commandName = Encoding.UTF8.GetString(commandSpan[..commandOffset]);
+            
             if (this.Plugin.Commands.Registered.TryGetValue(commandName, out var id))
             {
-                sendTo = id;
-
-                if (commandOffset >= messageSpan.Length
-                    || (toSend = messageSpan[(commandOffset + 1)..]).IsWhiteSpace())
+                if (commandOffset >= commandSpan.Length)
                 {
-                    this.OverrideChannel = sendTo;
-                    this.Plugin.ConfigInfo.CurrentChannel = sendTo;
+                    this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel = id;
                     this.Plugin.SaveConfig();
                     return false;
                 }
+
+                sendTo = id;
+                toSend = commandSpan[(commandOffset + 1)..];
             }
         }
 
@@ -266,7 +277,7 @@ internal unsafe class GameFunctions : IDisposable {
             return true;
 
         if (toSend.Length == 0)
-            toSend = messageSpan;
+            toSend = commandSpan;
 
         if (toSend.IsWhiteSpace())
             // don't send blank messages even to the original handler

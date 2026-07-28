@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Net.WebSockets;
+using System.Text;
 using Dalamud.Game.Text;
 using ExtraChat.Protocol;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -11,46 +12,55 @@ public static class Ext {
     public static string ToHexString(this IEnumerable<byte> bytes) {
         return string.Join("", bytes.Select(b => b.ToString("x2")));
     }
-
-    public static bool IsWhiteSpace(this ReadOnlySpan<byte> span)
+    
+    extension(ReadOnlySpan<byte> span)
     {
-        foreach (var b in span)
-            if (!char.IsWhiteSpace((char)b))
-                return false;
+        public bool IsWhiteSpace()
+        {
+            return Encoding.UTF8.GetString(span).Replace("\u3000", " ").IsWhiteSpace();
+        }
 
-        return true;
+        public int IndexOfAny(ReadOnlySpan<byte> span1, ReadOnlySpan<byte> span2)
+        {
+            var idx = span.IndexOf(span1);
+
+            return idx != -1 ? idx : span.IndexOf(span2);
+        }
     }
 
-    public static async Task SendMessage(this ClientWebSocket client, RequestContainer request) {
-        var bytes = MessagePackSerializer.Serialize(request);
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await client.SendAsync(bytes, WebSocketMessageType.Binary, true, cts.Token);
-    }
-
-    public static async Task<ResponseContainer> ReceiveMessage(this ClientWebSocket client)
+    extension(ClientWebSocket client)
     {
-        var bytes = ArrayPool<byte>.Shared.Rent(64 * 1024);
-        var bytesSegment = new ArraySegment<byte>(bytes);
+        public async Task SendMessage(RequestContainer request) {
+            var bytes = MessagePackSerializer.Serialize(request);
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await client.SendAsync(bytes, WebSocketMessageType.Binary, true, cts.Token);
+        }
 
-        WebSocketReceiveResult result;
-        var i = 0;
-        do {
-            result = await client.ReceiveAsync(bytesSegment[i..], CancellationToken.None);
+        public async Task<ResponseContainer> ReceiveMessage()
+        {
+            var bytes = ArrayPool<byte>.Shared.Rent(64 * 1024);
+            var bytesSegment = new ArraySegment<byte>(bytes);
 
-            if (result.MessageType == WebSocketMessageType.Close)
-                throw new WebSocketClosure(result.CloseStatus!.Value, result.CloseStatusDescription!);
+            WebSocketReceiveResult result;
+            var i = 0;
+            do {
+                result = await client.ReceiveAsync(bytesSegment[i..], CancellationToken.None);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                    throw new WebSocketClosure(result.CloseStatus!.Value, result.CloseStatusDescription!);
             
-            i += result.Count;
+                i += result.Count;
 
-            if (i >= bytesSegment.Count) {
-                throw new Exception();
-            }
-        } while (!result.EndOfMessage);
+                if (i >= bytesSegment.Count) {
+                    throw new Exception();
+                }
+            } while (!result.EndOfMessage);
 
-        var message = MessagePackSerializer.Deserialize<ResponseContainer>(bytesSegment[..i]);
+            var message = MessagePackSerializer.Deserialize<ResponseContainer>(bytesSegment[..i]);
         
-        ArrayPool<byte>.Shared.Return(bytes);
-        return message;
+            ArrayPool<byte>.Shared.Return(bytes);
+            return message;
+        }
     }
 
     public static unsafe Utf8String* ToUtf8String(this ReadOnlySpan<byte> input)
