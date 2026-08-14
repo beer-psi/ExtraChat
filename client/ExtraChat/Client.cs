@@ -70,9 +70,6 @@ internal class Client : IAsyncDisposable {
         this.Plugin = plugin;
         this.WebSocket = new ClientWebSocket();
         this.KeyPair = SodiumKeyExchange.GenerateKeyPair();
-
-        this.Plugin.ClientState.Login += this.Login;
-        this.Plugin.ClientState.Logout += this.Logout;
     }
 
     private async ValueTask CloseAsync()
@@ -96,21 +93,10 @@ internal class Client : IAsyncDisposable {
 
     public async ValueTask DisposeAsync()
     {
-        this.Plugin.ClientState.Login -= this.Login;
-        this.Plugin.ClientState.Logout -= this.Logout;
-
         await this.CloseAsync();
         
         this.WebSocket.Dispose();
         this._waitersSemaphore.Dispose();
-    }
-
-    private void Login() {
-        this.StartLoop();
-    }
-
-    private void Logout(int type, int code) {
-        this.StopLoop();
     }
 
     internal bool TryGetChannel(Guid id, [MaybeNullWhen(false)] out Channel channel) {

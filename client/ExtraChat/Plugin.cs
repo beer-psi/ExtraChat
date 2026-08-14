@@ -76,21 +76,19 @@ public class Plugin : IAsyncDalamudPlugin {
     internal GameFunctions GameFunctions { get; }
     internal Ipc Ipc { get; }
     private IDisposable[] Integrations { get; }
-
-    private IPlayerCharacter? _localPlayer;
-    private readonly Mutex _localPlayerLock = new();
-
+    
+    private readonly ReaderWriterLockSlim _localPlayerLock = new();
     internal IPlayerCharacter? LocalPlayer {
         get {
-            this._localPlayerLock.WaitOne();
-            var player = this._localPlayer;
-            this._localPlayerLock.ReleaseMutex();
+            this._localPlayerLock.EnterReadLock();
+            var player = field;
+            this._localPlayerLock.ExitReadLock();
             return player;
         }
         private set {
-            this._localPlayerLock.WaitOne();
-            this._localPlayer = value;
-            this._localPlayerLock.ReleaseMutex();
+            this._localPlayerLock.EnterWriteLock();
+            field = value;
+            this._localPlayerLock.ExitWriteLock();
         }
     }
 
@@ -105,35 +103,39 @@ public class Plugin : IAsyncDalamudPlugin {
         if (Path.Exists(originalExtraChat) && !Path.Exists(ourExtraChat))
             File.Copy(originalExtraChat, ourExtraChat);
         
+        // register this before the client so it runs first and sets LocalPlayer for the client
+        this.ClientState!.Login += this.OnLogin;
+        this.ClientState.Logout += this.OnLogout;
+        
         this.Config = this.Interface!.GetPluginConfig() as Configuration ?? new Configuration();
         this.Commands = new Commands(this);
         this.Ipc = new Ipc(this);
         this.Client = new Client(this);
         this.GameFunctions = new GameFunctions(this, this.Client);
         this.PluginUi = new PluginUi(this);
-
         this.Integrations = [
             new ChatTwo(this),
         ];
-
-        this.Framework!.Update += this.FrameworkUpdate;
+        
         this.ContextMenu!.OnMenuOpened += this.OnMenuOpened;
     }
 
-    public Task LoadAsync(CancellationToken token)
+    public async Task LoadAsync(CancellationToken token)
     {
         if (this.ClientState.IsLoggedIn)
+        {
+            this.LocalPlayer = await this.Framework.RunOnTick(() => this.ObjectTable.LocalPlayer, cancellationToken: token);
             this.Client.StartLoop();
-
-        return Task.CompletedTask;
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         this.GameFunctions.ResetOverride(false);
 
+        this.ClientState.Logout -= this.OnLogout;
+        this.ClientState.Login -= this.OnLogin;
         this.ContextMenu.OnMenuOpened -= this.OnMenuOpened;
-        this.Framework.Update -= this.FrameworkUpdate;
         this._localPlayerLock.Dispose();
 
         foreach (var integration in this.Integrations) {
@@ -149,13 +151,16 @@ public class Plugin : IAsyncDalamudPlugin {
         GC.SuppressFinalize(this);
     }
 
-    private void FrameworkUpdate(IFramework framework) {
-        if (this.ObjectTable.LocalPlayer is { } player) {
-            this.LocalPlayer = player;
-        } else if (!this.ClientState.IsLoggedIn) {
-            // only set to null if not logged in
-            this.LocalPlayer = null;
-        }
+    private void OnLogin()
+    {
+        this.LocalPlayer = this.ObjectTable.LocalPlayer;
+        this.Client.StartLoop();
+    }
+
+    private void OnLogout(int type, int code)
+    {
+        this.Client.StopLoop();
+        this.LocalPlayer = null;
     }
 
     private unsafe void OnMenuOpened(IMenuOpenedArgs args) {
