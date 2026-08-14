@@ -5,8 +5,7 @@ description: |-
   to the game. (Fork of official plugin with features and some fixes)
 changelog: |-
   # Fixes
-  - When switching to an ECLS, also deselect the channel you're switching from in the
-  chat mode dropdown.
+  - Fixes auto-translate phrases for commands (e.g. \uE040/think\uE041) being treated as actual commands
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false

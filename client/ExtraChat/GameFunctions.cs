@@ -228,9 +228,10 @@ internal unsafe class GameFunctions : IDisposable {
     private bool ProcessCommandWithContextDetourInner(Utf8String* command, UIModule* uiModule, int evaluateTextCommandReturn)
     {
         // 0 = EvaluateTextCommand success
+        //     This also triggers when using auto-translate for commands??? what
         // -1 = is not command or is unknown command
         // -2 = is command but did not match expected command ID
-        if (evaluateTextCommandReturn != -1)
+        if (evaluateTextCommandReturn != 0 && evaluateTextCommandReturn != -1)
             return true;
         
         // passthrough, we're in a /reply command sequence
