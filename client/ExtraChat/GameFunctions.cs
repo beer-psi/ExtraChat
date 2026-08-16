@@ -43,8 +43,7 @@ internal unsafe class GameFunctions : IDisposable {
     private delegate void ProcessCommandWithContext(
         ShellCommandModule* self, Utf8String* command, UIModule* uiModule, ShellCommandInterface.CommandContext* ctx, int evaluateTextCommandReturn);
 
-    #pragma warning disable CS0618
-    private Guid OverrideChannel
+    internal Guid OverrideChannel
     {
         get;
         set
@@ -55,7 +54,6 @@ internal unsafe class GameFunctions : IDisposable {
             this.Plugin.Ipc?.BroadcastOverride(value);
         }
     }
-#pragma warning restore CS0618
 
     internal GameFunctions(Plugin plugin, Client client) {
         this.Plugin = plugin;
@@ -228,10 +226,10 @@ internal unsafe class GameFunctions : IDisposable {
     private bool ProcessCommandWithContextDetourInner(Utf8String* command, UIModule* uiModule, int evaluateTextCommandReturn)
     {
         // 0 = EvaluateTextCommand success
-        //     This also triggers when using auto-translate for commands??? what
+        //     This also triggers when using auto-translate for commands.
         // -1 = is not command or is unknown command
         // -2 = is command but did not match expected command ID
-        if (evaluateTextCommandReturn != 0 && evaluateTextCommandReturn != -1)
+        if (evaluateTextCommandReturn != -1)
             return true;
         
         // passthrough, we're in a /reply command sequence
@@ -250,7 +248,7 @@ internal unsafe class GameFunctions : IDisposable {
         var toSend = ReadOnlySpan<byte>.Empty;
         var commandSpan = command->AsSpan();
         
-        if (command->Length > 1 && command->StringPtr.Value[0] == '/') {
+        if (commandSpan.Length > 1 && commandSpan[0] == '/') {
             sendTo = Guid.Empty;
 
             var commandOffset = commandSpan.IndexOfAny(" "u8, "\u3000"u8);
@@ -258,19 +256,29 @@ internal unsafe class GameFunctions : IDisposable {
             if (commandOffset == -1)
                 commandOffset = command->Length;
             
-            var commandName = Encoding.UTF8.GetString(commandSpan[..commandOffset]);
+            if (commandOffset < commandSpan.Length)
+                toSend = commandSpan[(commandOffset + 1)..];
             
-            if (this.Plugin.Commands.Registered.TryGetValue(commandName, out var id))
+            var commandName = Encoding.UTF8.GetString(commandSpan[..commandOffset]);
+
+            if (commandName == "/ecl")
             {
-                if (commandOffset >= commandSpan.Length)
+                if (this.Plugin.ConfigInfo.LastSentChannel == Guid.Empty)
                 {
-                    this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel = id;
-                    this.Plugin.SaveConfig();
+                    Plugin.ChatGui.PrintError("The last ExtraChat linkshell you sent a message to was not known.");
                     return false;
                 }
 
+                sendTo = this.Plugin.ConfigInfo.LastSentChannel;
+            }
+            else if (this.Plugin.Commands.Registered.TryGetValue(commandName, out var id))
                 sendTo = id;
-                toSend = commandSpan[(commandOffset + 1)..];
+
+            if (sendTo != Guid.Empty && toSend.IsWhiteSpace())
+            {
+                this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel = sendTo;
+                this.Plugin.SaveConfig();
+                return false;
             }
         }
 
