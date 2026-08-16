@@ -14,7 +14,10 @@ using ExtraChat.Ui;
 using ExtraChat.Util;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using Lumina.Excel.Sheets;
+using Lumina.Text.Payloads;
+using Lumina.Text.ReadOnly;
 using Channel = ExtraChat.Protocol.Channels.Channel;
+using SeStringBuilder = Lumina.Text.SeStringBuilder;
 
 namespace ExtraChat;
 
@@ -1006,6 +1009,9 @@ internal class Client : IAsyncDisposable {
         this.Plugin.Ipc.BroadcastChannelNames();
     }
 
+    private static readonly ReadOnlySeString LinkTerminator = new(RawPayload.LinkTerminator.Data);
+    private readonly Dictionary<Guid, ReadOnlySeString> TagPayloads = new();
+
     private void HandleMessage(MessageResponse resp) {
         var config = this.Plugin.ConfigInfo;
 
@@ -1014,65 +1020,78 @@ internal class Client : IAsyncDisposable {
         }
         
         var outputChannel = this.Plugin.ConfigInfo.ChannelChannels.GetValueOrDefault(resp.Channel, XivChatType.Debug);
-        var message = SeString.Parse(
-            this.Plugin.GameFunctions.ProcessFixedMacros(
-                SecretBox.Decrypt(info.SharedSecret, resp.Message),
-                this.Plugin.ConfigInfo.ShouldPlaySoundEffectMacros(resp.Channel)));
+        var message = new ReadOnlySeStringSpan(this.Plugin.GameFunctions.ProcessFixedMacros(
+            SecretBox.Decrypt(info.SharedSecret, resp.Message),
+            this.Plugin.ConfigInfo.ShouldPlaySoundEffectMacros(resp.Channel)));
 
-        var output = new SeStringBuilder();
-        // add a tag payload for filtering
-        output.Add(PayloadUtil.CreateTagPayload(resp.Channel));
-        output.Add(RawPayload.LinkTerminator);
+        if (!TagPayloads.TryGetValue(resp.Channel, out var tagPayload))
+        {
+            tagPayload = new ReadOnlySeString(PayloadUtil.CreateTagPayload(resp.Channel));
+
+            TagPayloads[resp.Channel] = tagPayload;
+        }
+
+        var outputBuilder = SeStringBuilder.SharedPool.Get()
+            // Add a tag payload for filtering
+            .Append(tagPayload)
+            .Append(LinkTerminator);
 
         var isOutputLinkshell = outputChannel.IsLinkshell();
         var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
         var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
         var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.RowId == resp.World;
-        var sender = new SeStringBuilder();
 
+        var senderBuilder = SeStringBuilder.SharedPool.Get();
+       
         if (isSelf)
-            sender.Append(resp.Sender);
+            senderBuilder.Append(resp.Sender);
         else
-            sender.Add(new PlayerPayload(resp.Sender, resp.World));
-        
+            senderBuilder.PushLinkCharacter(resp.Sender, resp.World).Append(resp.Sender).PopLink();
+            
         if (!isSelf && !homeWorldsSameAndOnHomeWorld)
         {
-            sender.AddIcon(BitmapFontIcon.CrossWorld);
-           
-            var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name.ToDalamudString();
+            senderBuilder.AppendIcon((uint)BitmapFontIcon.CrossWorld);
+
+            var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name;
 
             if (world != null)
-                sender.Append(world);
+                senderBuilder.Append(world);
             else
-                sender.AddText($"[Unknown {resp.World}]");
+                senderBuilder.Append($"[Unknown {resp.World}]");
         }
+            
+        var sender = senderBuilder.ToReadOnlySeString();
 
         if (!isOutputLinkshell)
         {
             var colour = config.GetUiColour(resp.Channel);
-            output.AddUiForeground(colour);
+
+            outputBuilder.BeginMacro(MacroCode.ColorType).AppendIntExpression(colour).EndMacro();
 
             var marker = config.GetMarker(resp.Channel) ?? "ECLS?";
-
-            output.AddText($"[{marker}]<");
-            output.Append(sender.BuiltString);
-            output.AddText("> ");
+            
+            outputBuilder.Append($"[{marker}]<");
+            outputBuilder.Append(sender);
+            outputBuilder.Append("> ");
         }
 
-        output.Append(message);
+        outputBuilder.Append(message);
 
         if (!isOutputLinkshell)
-            output.AddUiForegroundOff();
+            outputBuilder.BeginMacro(MacroCode.ColorType).AppendIntExpression(0).EndMacro();
         
         this.Plugin.ChatGui.Print(new XivChatEntry {
             Type = outputChannel,
-            Name = sender.BuiltString,
-            Message = output.Build(),
+            Name = sender.ToDalamudString(),
+            Message = outputBuilder.ToReadOnlySeString().ToDalamudString(),
             Silent = isSelf,
         });
 
         if (!isSelf && !isOutputLinkshell && this.Plugin.ConfigInfo.ChannelSoundEffects.TryGetValue(resp.Channel, out var notificationSound))
             UIGlobals.PlayChatSoundEffect((uint)notificationSound);
+        
+        SeStringBuilder.SharedPool.Return(senderBuilder);
+        SeStringBuilder.SharedPool.Return(outputBuilder);
     }
 
     private void HandleInvited(InvitedResponse info) {

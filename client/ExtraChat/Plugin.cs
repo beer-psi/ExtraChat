@@ -2,7 +2,6 @@
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Game.Text;
-using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -11,6 +10,7 @@ using ExtraChat.Integrations;
 using ExtraChat.Ui;
 using ExtraChat.Util;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using Lumina.Text.ReadOnly;
 
 namespace ExtraChat;
 
@@ -20,56 +20,26 @@ public class Plugin : IAsyncDalamudPlugin {
 
     internal static string Name => "ExtraChat";
 
-    [PluginService]
-    internal static IPluginLog Log { get; private set; }
-
-    [PluginService]
-    internal IDalamudPluginInterface Interface { get; init; }
-
-    [PluginService]
-    internal IClientState ClientState { get; init; }
-
-    [PluginService]
-    internal ICommandManager CommandManager { get; init; }
-
-    [PluginService]
-    internal IContextMenu ContextMenu { get; init; }
-
-    [PluginService]
-    internal IChatGui ChatGui { get; init; }
-
-    [PluginService]
-    internal IDataManager DataManager { get; init; }
-
-    [PluginService]
-    internal IFramework Framework { get; init; }
-
-    [PluginService]
-    internal IGameGui GameGui { get; init; }
-
-    [PluginService]
-    internal INotificationManager NotificationManager { get; init; }
-
-    [PluginService]
-    internal IObjectTable ObjectTable { get; init; }
-
-    [PluginService]
-    internal IPlayerState PlayerState { get; init; }
-
-    [PluginService]
-    internal ITargetManager TargetManager { get; init; }
-
-    [PluginService]
-    internal IGameInteropProvider GameInteropProvider { get; init; }
-
-    [PluginService]
-    private IToastGui ToastGui { get; init; }
-    
-    [PluginService]
-    internal IAddonLifecycle AddonLifecycle { get; init; }
+    [PluginService] internal IPluginLog Log { get; private set; } = null!;
+    [PluginService] internal IDalamudPluginInterface Interface { get; private set; } = null!;
+    [PluginService] internal IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] internal IContextMenu ContextMenu { get; private set; } = null!;
+    [PluginService] internal IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal IFramework Framework { get; private set; } = null!;
+    [PluginService] internal IGameGui GameGui { get; private set; } = null!;
+    [PluginService] internal INotificationManager NotificationManager { get; private set; } = null!;
+    [PluginService] internal IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] internal IPlayerState PlayerState { get; private set; } = null!;
+    [PluginService] internal ITargetManager TargetManager { get; private set; } = null!;
+    [PluginService] internal IGameInteropProvider GameInteropProvider { get; private set; } = null!;
+    [PluginService] private IToastGui ToastGui { get; set; } = null!;
+    [PluginService] internal IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+    [PluginService] internal IGameConfig GameConfig { get; private set; } = null!;
 
     internal Configuration Config { get; }
-    internal ConfigInfo ConfigInfo => this.Config.GetConfig(this.PlayerState.ContentId);
+    internal ConfigInfo ConfigInfo => this.Config.GetConfig(PlayerState.ContentId);
     internal Client Client { get; }
     internal Commands Commands { get; }
     internal PluginUi PluginUi { get; }
@@ -94,9 +64,9 @@ public class Plugin : IAsyncDalamudPlugin {
 
     public Plugin() {
         SodiumInit.Init();
-        WorldUtil.Initialise(this.DataManager!);
+        WorldUtil.Initialise(this.DataManager);
 
-        var configDir = Path.Join(this.Interface!.GetPluginConfigDirectory(), "..");
+        var configDir = Path.Join(this.Interface.GetPluginConfigDirectory(), "..");
         var originalExtraChat = Path.Join(configDir, "ExtraChat.json");
         var ourExtraChat = Path.Join(configDir, "ExtraChatFork.json");
 
@@ -104,10 +74,10 @@ public class Plugin : IAsyncDalamudPlugin {
             File.Copy(originalExtraChat, ourExtraChat);
         
         // register this before the client so it runs first and sets LocalPlayer for the client
-        this.ClientState!.Login += this.OnLogin;
+        this.ClientState.Login += this.OnLogin;
         this.ClientState.Logout += this.OnLogout;
         
-        this.Config = this.Interface!.GetPluginConfig() as Configuration ?? new Configuration();
+        this.Config = this.Interface.GetPluginConfig() as Configuration ?? new Configuration();
         this.Commands = new Commands(this);
         this.Ipc = new Ipc(this);
         this.Client = new Client(this);
@@ -117,7 +87,7 @@ public class Plugin : IAsyncDalamudPlugin {
             new ChatTwo(this),
         ];
         
-        this.ContextMenu!.OnMenuOpened += this.OnMenuOpened;
+        this.ContextMenu.OnMenuOpened += this.OnMenuOpened;
     }
 
     public async Task LoadAsync(CancellationToken token)
@@ -131,7 +101,7 @@ public class Plugin : IAsyncDalamudPlugin {
 
     public async ValueTask DisposeAsync()
     {
-        this.GameFunctions.ResetOverride(false);
+        this.GameFunctions.ResetOverride();
 
         this.ClientState.Logout -= this.OnLogout;
         this.ClientState.Login -= this.OnLogin;
@@ -179,7 +149,8 @@ public class Plugin : IAsyncDalamudPlugin {
             return;
         }
 
-        var name = SeString.Parse(ctx->TargetName.AsSpan()).TextValue;
+        var name = new ReadOnlySeStringSpan(ctx->TargetName.AsSpan()).ExtractText();
+        
         if (string.IsNullOrWhiteSpace(name)) {
             return;
         }
