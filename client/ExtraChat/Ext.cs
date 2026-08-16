@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Net.WebSockets;
 using System.Text;
+using Dalamud.Game.Config;
 using Dalamud.Game.Text;
 using ExtraChat.Protocol;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -82,11 +83,59 @@ public static class Ext {
         return str;
     }
 
-    public static bool IsLinkshell(this XivChatType chatType)
+    extension(XivChatType chatType)
     {
-        return chatType is XivChatType.CrossLinkShell1
-            or >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8
-            or >= XivChatType.Ls1 and <= XivChatType.Ls8;
+        public bool IsLinkshell()
+        {
+            return chatType is XivChatType.CrossLinkShell1
+                or >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8
+                or >= XivChatType.Ls1 and <= XivChatType.Ls8;
+        }
+
+        public UiConfigOption ToColorConfigOption() => chatType switch
+        {
+            XivChatType.Say => UiConfigOption.ColorSay,
+            XivChatType.Shout => UiConfigOption.ColorShout,
+            XivChatType.TellOutgoing => UiConfigOption.ColorTell,
+            XivChatType.Party => UiConfigOption.ColorParty,
+            XivChatType.Alliance => UiConfigOption.ColorAlliance,
+            XivChatType.Yell => UiConfigOption.ColorYell,
+            XivChatType.Ls1 => UiConfigOption.ColorLS1,
+            XivChatType.Ls2 => UiConfigOption.ColorLS2,
+            XivChatType.Ls3 => UiConfigOption.ColorLS3,
+            XivChatType.Ls4 => UiConfigOption.ColorLS4,
+            XivChatType.Ls5 => UiConfigOption.ColorLS5,
+            XivChatType.Ls6 => UiConfigOption.ColorLS6,
+            XivChatType.Ls7 => UiConfigOption.ColorLS7,
+            XivChatType.Ls8 => UiConfigOption.ColorLS8,
+            XivChatType.CrossLinkShell1 => UiConfigOption.ColorCWLS,
+            XivChatType.CrossLinkShell2 => UiConfigOption.ColorCWLS2,
+            XivChatType.CrossLinkShell3 => UiConfigOption.ColorCWLS3,
+            XivChatType.CrossLinkShell4 => UiConfigOption.ColorCWLS4,
+            XivChatType.CrossLinkShell5 => UiConfigOption.ColorCWLS5,
+            XivChatType.CrossLinkShell6 => UiConfigOption.ColorCWLS6,
+            XivChatType.CrossLinkShell7 => UiConfigOption.ColorCWLS7,
+            XivChatType.CrossLinkShell8 => UiConfigOption.ColorCWLS8,
+            XivChatType.FreeCompany => UiConfigOption.ColorFCompany,
+            XivChatType.NoviceNetwork => UiConfigOption.ColorBeginner,
+            XivChatType.NoviceNetworkSystem => UiConfigOption.ColorBeginnerAnnounce,
+            XivChatType.CustomEmote => UiConfigOption.ColorEmoteUser,
+            XivChatType.StandardEmote => UiConfigOption.ColorEmote,
+            XivChatType.GainBuff => UiConfigOption.ColorBuffGive,
+            XivChatType.Healing => UiConfigOption.ColorCureGive,
+            XivChatType.GainDebuff => UiConfigOption.ColorDebuffGive,
+            XivChatType.LootRoll => UiConfigOption.ColorLoot,
+            XivChatType.FreeCompanyAnnouncement => UiConfigOption.ColorFCAnnounce,
+            XivChatType.PvpTeamAnnouncement => UiConfigOption.ColorPvPGroupAnnounce,
+            XivChatType.Damage => UiConfigOption.ColorAttackSuccess,
+            XivChatType.Action => UiConfigOption.ColorAction,
+            XivChatType.Item => UiConfigOption.ColorItem,
+            XivChatType.Miss => UiConfigOption.ColorAttackFailure,
+            XivChatType.Echo => UiConfigOption.ColorEcho,
+            XivChatType.Crafting => UiConfigOption.ColorCraft,
+            XivChatType.Gathering => UiConfigOption.ColorGathering,
+            _ => UiConfigOption.ColorSay
+        };
     }
 }
 

@@ -1,5 +1,7 @@
+using System.Numerics;
 using Dalamud.Plugin.Ipc;
 using Lumina.Excel.Sheets;
+using Lumina.Extensions;
 
 namespace ExtraChat;
 
@@ -69,8 +71,29 @@ internal class Ipc : IDisposable {
         }
 
         var name = this.Plugin.ConfigInfo.GetFullName(over);
-        var colour = this.Plugin.ConfigInfo.GetUiColour(over);
-        var rgba = this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.Dark ?? 0;
+        var channel = this.Plugin.ConfigInfo.GetOutputChannel(over);
+
+        var uiColorSheet = this.Plugin.DataManager.GetExcelSheet<UIColor>(); 
+        ushort colour;
+        uint rgba;
+        if (channel.IsLinkshell())
+        {
+            if (this.Plugin.GameConfig.TryGet(channel.ToColorConfigOption(), out uint argb))
+            {
+                rgba = BitOperations.RotateLeft(argb, 8);
+                colour = (ushort)(uiColorSheet.FirstOrNull(color => color.Dark == rgba)?.RowId ?? 0);
+            }
+            else
+            {
+                colour = Plugin.DefaultColour;
+                rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
+            }
+        }
+        else
+        {
+            colour = this.Plugin.ConfigInfo.GetUiColour(over);
+            rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
+        }
 
         this.OverrideChannelColour.SendMessage(new OverrideInfo {
             Channel = name,
