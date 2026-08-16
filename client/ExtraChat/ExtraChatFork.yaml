@@ -4,8 +4,14 @@ description: |-
   ExtraChat adds end-to-end encrypted, cross-data-centre, unlimited linkshells
   to the game. (Fork of official plugin with features and some fixes)
 changelog: |-
+  # Features
+  - /ecl now chooses the ExtraChat linkshell you last sent a message to, rather than the first
+  linkshell.
+  
   # Fixes
-  - Fixes auto-translate phrases for commands (e.g. \uE040/think\uE041) being treated as actual commands
+  - Un-fix sending auto-translate commands as a message when placed at the beginning. This lines up with
+  vanilla game behavior. To send an auto-translate command as a message, send "/eclX <auto-translate>".
+  - Fix chat entry color in Chat 2 when using in-game linkshell/CWLS as the output channel.
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false
