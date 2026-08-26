@@ -32,6 +32,8 @@ internal class PluginUi : IDisposable {
         .Select(s => s == NotificationSound.None ? "Disabled" : $"Type {(uint)s}")
         .ToArray();
 
+    private string _getChallengeError = string.Empty;
+
     internal PluginUi(Plugin plugin) {
         this.Plugin = plugin;
         this.ChannelList = new ChannelList(this.Plugin);
@@ -473,10 +475,29 @@ internal class PluginUi : IDisposable {
             } else {
                 if (ImGui.Button($"Register {player.Name}") && !this.Busy) {
                     this.Busy = true;
-                    Task.Run(async () => {
-                        var challenge = await this.Plugin.Client.GetChallenge();
+                    this._getChallengeError = string.Empty;
+                    
+                    Task.Run(async () =>
+                    {
+                        string? challenge;
+                        try
+                        {
+                            challenge = await this.Plugin.Client.GetChallenge();
+                        }
+                        catch (Exception e)
+                        {
+                            this._getChallengeError = e.Message;
+                            throw;
+                        }
+                        
                         await this._challengeChannel.Writer.WriteAsync(challenge);
                     }).ContinueWith(_ => this.Busy = false);
+                }
+
+                if (this._getChallengeError.Length > 0)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextColored(ImGuiColors.ErrorForeground, this._getChallengeError);
                 }
 
                 ImGui.PushTextWrapPos();
