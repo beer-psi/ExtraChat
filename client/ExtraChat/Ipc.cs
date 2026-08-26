@@ -34,14 +34,23 @@ internal class Ipc : IDisposable {
         this.ChannelCommandColours.UnregisterFunc();
     }
 
-    private Dictionary<string, uint> GetChannelColours() {
-        var dict = new Dictionary<string, uint>(this.Plugin.Commands.Registered.Count);
+    private Dictionary<string, uint> GetChannelColours()
+    {
+        var info = this.Plugin.ConfigInfo;
+        var dict = new Dictionary<string, uint>(info.ChannelOrder.Count + info.Aliases.Count);
 
-        foreach (var (command, id) in this.Plugin.Commands.Registered) {
-            var colour = this.Plugin.ConfigInfo.GetUiColour(id);
-            if (this.Plugin.DataManager.GetExcelSheet<UIColor>()?.GetRowOrDefault(colour)?.Dark is { } rgba) {
-                dict[command] = rgba;
-            }
+        foreach (var (idx, id) in info.ChannelOrder)
+        {
+            this.Plugin.GetChannelColour(id, out _, out var rgba);
+
+            dict[$"/ecl{idx + 1}"] = rgba;
+        }
+
+        foreach (var (alias, id) in info.Aliases)
+        {
+            this.Plugin.GetChannelColour(id, out _, out var rgba);
+
+            dict[alias] = rgba;
         }
 
         return dict;
@@ -71,29 +80,8 @@ internal class Ipc : IDisposable {
         }
 
         var name = this.Plugin.ConfigInfo.GetFullName(over);
-        var channel = this.Plugin.ConfigInfo.GetOutputChannel(over);
 
-        var uiColorSheet = this.Plugin.DataManager.GetExcelSheet<UIColor>(); 
-        ushort colour;
-        uint rgba;
-        if (channel.IsLinkshell())
-        {
-            if (this.Plugin.GameConfig.TryGet(channel.ToColorConfigOption(), out uint argb))
-            {
-                rgba = BitOperations.RotateLeft(argb, 8);
-                colour = (ushort)(uiColorSheet.FirstOrNull(color => color.Dark == rgba)?.RowId ?? 0);
-            }
-            else
-            {
-                colour = Plugin.DefaultColour;
-                rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
-            }
-        }
-        else
-        {
-            colour = this.Plugin.ConfigInfo.GetUiColour(over);
-            rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
-        }
+        this.Plugin.GetChannelColour(over, out var colour, out var rgba);
 
         this.OverrideChannelColour.SendMessage(new OverrideInfo {
             Channel = name,

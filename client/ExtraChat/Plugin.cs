@@ -1,4 +1,5 @@
-﻿using ASodium;
+﻿using System.Numerics;
+using ASodium;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Game.Text;
@@ -10,6 +11,8 @@ using ExtraChat.Integrations;
 using ExtraChat.Ui;
 using ExtraChat.Util;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using Lumina.Excel.Sheets;
+using Lumina.Extensions;
 using Lumina.Text.ReadOnly;
 
 namespace ExtraChat;
@@ -41,6 +44,7 @@ public class Plugin : IAsyncDalamudPlugin {
     internal Configuration Config { get; }
     internal ConfigInfo ConfigInfo => this.Config.GetConfig(PlayerState.ContentId);
     internal Client Client { get; }
+    internal PluginCommandManager PluginCommandManager { get; }
     internal Commands Commands { get; }
     internal PluginUi PluginUi { get; }
     internal GameFunctions GameFunctions { get; }
@@ -78,10 +82,11 @@ public class Plugin : IAsyncDalamudPlugin {
         this.ClientState.Logout += this.OnLogout;
         
         this.Config = this.Interface.GetPluginConfig() as Configuration ?? new Configuration();
-        this.Commands = new Commands(this);
+        this.PluginCommandManager = new PluginCommandManager(this);
+        this.Commands = new Commands(this, this.PluginCommandManager);
         this.Ipc = new Ipc(this);
         this.Client = new Client(this);
-        this.GameFunctions = new GameFunctions(this, this.Client);
+        this.GameFunctions = new GameFunctions(this, this.PluginCommandManager, this.Client);
         this.PluginUi = new PluginUi(this);
         this.Integrations = [
             new ChatTwo(this),
@@ -117,6 +122,7 @@ public class Plugin : IAsyncDalamudPlugin {
         await this.Client.DisposeAsync();
         this.Ipc.Dispose();
         this.Commands.Dispose();
+        this.PluginCommandManager.Dispose();
         
         GC.SuppressFinalize(this);
     }
@@ -214,5 +220,32 @@ public class Plugin : IAsyncDalamudPlugin {
             Type = XivChatType.ErrorMessage,
             Message = message,
         });
+    }
+    
+    internal bool GetChannelColour(Guid channel, out ushort colour, out uint rgba)
+    {
+        var uiColorSheet = this.DataManager.GetExcelSheet<UIColor>();
+        var output = this.ConfigInfo.GetOutputChannel(channel);
+
+        if (output.IsLinkshell())
+        {
+            if (this.GameConfig.TryGet(output.ToColorConfigOption(), out uint argb))
+            {
+                var rgba2 = rgba = BitOperations.RotateLeft(argb, 8);
+                colour = (ushort)(uiColorSheet.FirstOrNull(color => color.Dark == rgba2)?.RowId ?? 0);
+            }
+            else
+            {
+                colour = Plugin.DefaultColour;
+                rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
+            }
+        }
+        else
+        {
+            colour = this.ConfigInfo.GetUiColour(channel);
+            rgba = uiColorSheet.GetRowOrDefault(colour)?.Dark ?? 0;
+        }
+
+        return true;
     }
 }

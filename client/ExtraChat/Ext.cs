@@ -20,13 +20,6 @@ public static class Ext {
         {
             return Encoding.UTF8.GetString(span).Replace("\u3000", " ").IsWhiteSpace();
         }
-
-        public int IndexOfAny(ReadOnlySpan<byte> span1, ReadOnlySpan<byte> span2)
-        {
-            var idx = span.IndexOf(span1);
-
-            return idx != -1 ? idx : span.IndexOf(span2);
-        }
     }
 
     extension(ClientWebSocket client)

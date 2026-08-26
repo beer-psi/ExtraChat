@@ -19,6 +19,7 @@ namespace ExtraChat;
 
 internal unsafe class GameFunctions : IDisposable {
     private Plugin Plugin { get; }
+    private PluginCommandManager PluginCommandManager { get; }
 
     // all this comes from 6.15: 751AF0
 
@@ -55,8 +56,10 @@ internal unsafe class GameFunctions : IDisposable {
         }
     }
 
-    internal GameFunctions(Plugin plugin, Client client) {
+    internal GameFunctions(Plugin plugin, PluginCommandManager pluginCommandManager, Client client) {
         this.Plugin = plugin;
+        this.PluginCommandManager = pluginCommandManager;
+
         this.Plugin.GameInteropProvider.InitializeFromAttributes(this);
         
         this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRefresh, "ChatLog", OnAddonChatLogPreRefresh);
@@ -161,37 +164,15 @@ internal unsafe class GameFunctions : IDisposable {
         var atkValues = new Span<AtkValue>((AtkValue*)refreshArgs.AtkValues, (int)refreshArgs.AtkValueCount);
         var outputType = this.Plugin.ConfigInfo.GetOutputChannel(this.OverrideChannel);
         var name = this.Plugin.ConfigInfo.GetFullName(this.OverrideChannel);
-        uint chatEntryColor;
 
-        if (outputType.IsLinkshell())
-        {
-            var rtm = UIModule.Instance()->GetRaptureTextModule();
-            var chatEntryColorIndex = outputType switch
-            {
-                >= XivChatType.Ls1 and <= XivChatType.Ls8 => (long)outputType + 1,
-                XivChatType.CrossLinkShell1 => 34,
-                >= XivChatType.CrossLinkShell2 and <= XivChatType.CrossLinkShell8 => (long)outputType - 18,
-                _ => -1,
-            };
-
-            chatEntryColor = chatEntryColorIndex != -1
-                ? Unsafe.As<int, uint>(ref rtm->GlobalParameters[chatEntryColorIndex].IntValue)
-                : 0xFF5AD0;
-        }
-        else
-        {
-            var channelColor = this.Plugin.ConfigInfo.GetUiColour(this.OverrideChannel);
-
-            chatEntryColor = (this.Plugin.DataManager.GetExcelSheet<UIColor>().GetRowOrDefault(channelColor)?.Dark
-                              ?? 0xFF5AD0FF) >> 8;
-        }
+        this.Plugin.GetChannelColour(this.OverrideChannel, out _, out var chatEntryColorRgba);
             
         // 1 = displayed chat name
         // 2 = command prefix?
         // 4 = tab 3 name, 5 = tab 4 name
         // 8->?? = chat channel options in UI
         atkValues[1].SetManagedString(Encoding.UTF8.GetBytes("\u3000 " + name + "\0"));
-        atkValues[37].UInt = chatEntryColor;
+        atkValues[37].UInt = (chatEntryColorRgba >> 8) & 0xFFFFFF;
     }
 
     private void OnAddonChatLogPostRefresh(AddonEvent type, AddonArgs args)
@@ -243,56 +224,21 @@ internal unsafe class GameFunctions : IDisposable {
         // the /tell command inside ShellCommandChatReply.ExecuteCommand.
         if (uiModule->GetRaptureShellModule()->TempChatType != -2)
             return true;
-        
-        var sendTo = this.OverrideChannel;
-        var toSend = ReadOnlySpan<byte>.Empty;
+
         var commandSpan = command->AsSpan();
-        
-        if (commandSpan.Length > 1 && commandSpan[0] == '/') {
-            sendTo = Guid.Empty;
 
-            var commandOffset = commandSpan.IndexOfAny(" "u8, "\u3000"u8);
+        // if our command manager have handled 
+        if (commandSpan.Length > 1 && commandSpan[0] == '/')
+            return !this.PluginCommandManager.ProcessCommand(commandSpan);
 
-            if (commandOffset == -1)
-                commandOffset = command->Length;
-            
-            if (commandOffset < commandSpan.Length)
-                toSend = commandSpan[(commandOffset + 1)..];
-            
-            var commandName = Encoding.UTF8.GetString(commandSpan[..commandOffset]);
-
-            if (commandName == "/ecl")
-            {
-                if (this.Plugin.ConfigInfo.LastSentChannel == Guid.Empty)
-                {
-                    Plugin.ChatGui.PrintError("The last ExtraChat linkshell you sent a message to was not known.");
-                    return false;
-                }
-
-                sendTo = this.Plugin.ConfigInfo.LastSentChannel;
-            }
-            else if (this.Plugin.Commands.Registered.TryGetValue(commandName, out var id))
-                sendTo = id;
-
-            if (sendTo != Guid.Empty && toSend.IsWhiteSpace())
-            {
-                this.OverrideChannel = this.Plugin.ConfigInfo.CurrentChannel = sendTo;
-                this.Plugin.SaveConfig();
-                return false;
-            }
-        }
-
-        if (sendTo == Guid.Empty)
+        if (this.OverrideChannel == Guid.Empty)
             return true;
-
-        if (toSend.Length == 0)
-            toSend = commandSpan;
-
-        if (toSend.IsWhiteSpace())
+        
+        if (commandSpan.IsWhiteSpace())
             // don't send blank messages even to the original handler
             return false;
 
-        this.Plugin.Commands.SendMessage(sendTo, toSend);
+        this.Plugin.Commands.SendMessage(this.OverrideChannel, commandSpan);
         return false;
     }
 

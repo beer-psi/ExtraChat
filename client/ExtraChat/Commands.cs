@@ -1,6 +1,5 @@
-using System.Text;
-using Dalamud.Game.Command;
 using ExtraChat.Util;
+using Lumina.Text.ReadOnly;
 
 namespace ExtraChat;
 
@@ -12,11 +11,11 @@ internal class Commands : IDisposable {
     };
 
     private Plugin Plugin { get; }
-    private Dictionary<string, Guid> RegisteredInternal { get; } = new();
-    internal IReadOnlyDictionary<string, Guid> Registered => this.RegisteredInternal;
+    private PluginCommandManager PluginCommandManager { get; }
 
-    internal Commands(Plugin plugin) {
+    internal Commands(Plugin plugin, PluginCommandManager pluginCommandManager) {
         this.Plugin = plugin;
+        this.PluginCommandManager = pluginCommandManager;
         
         this.Plugin.ClientState.Logout += this.OnLogout;
 
@@ -30,26 +29,26 @@ internal class Commands : IDisposable {
 
     private void RegisterMain() {
         foreach (var command in MainCommands) {
-            this.Plugin.CommandManager.AddHandler(command, new CommandInfo(this.MainCommand) {
+            this.PluginCommandManager.AddHandler(command, new PluginCommandInfo(MainCommand)
+            {
                 HelpMessage = "Opens the main ExtraChat UI.",
             });
         }
         
-        this.Plugin.CommandManager.AddHandler("/ecl", new CommandInfo(RecentLinkshellCommandHandler)
+        this.PluginCommandManager.AddHandler("/ecl", new PluginCommandInfo(RecentLinkshellCommandHandler)
         {
             ShowInHelp = false
         });
     }
 
     private void UnregisterMain() {
-        foreach (var command in MainCommands) {
-            this.Plugin.CommandManager.RemoveHandler(command);
-        }
+        foreach (var command in MainCommands)
+            this.PluginCommandManager.RemoveHandler(command);
 
-        this.Plugin.CommandManager.RemoveHandler("/ecl");
+        this.PluginCommandManager.RemoveHandler("/ecl");
     }
 
-    private void MainCommand(string command, string arguments) {
+    private void MainCommand(string command, ReadOnlySpan<byte> arguments) {
         this.Plugin.PluginUi.Visible ^= true;
     }
 
@@ -63,60 +62,52 @@ internal class Commands : IDisposable {
     private void RegisterAll() {
         var info = this.Plugin.ConfigInfo;
 
-        foreach (var (idx, id) in info.ChannelOrder) {
+        foreach (var (idx, id) in info.ChannelOrder)
             this.RegisterLinkshellCommand($"/ecl{idx + 1}", id);
-        }
 
-        foreach (var (alias, id) in info.Aliases) {
+        foreach (var (alias, id) in info.Aliases)
             this.RegisterLinkshellCommand(alias, id);
-        }
     }
 
     private void UnregisterAll() {
-        foreach (var command in this.Registered.Keys) {
-            this.Plugin.CommandManager.RemoveHandler(command);
-        }
+        var info = this.Plugin.ConfigInfo;
 
-        this.RegisteredInternal.Clear();
+        foreach (var (alias, _) in info.Aliases)
+            this.PluginCommandManager.RemoveHandler(alias);
+            
+        foreach (var (idx, _) in info.ChannelOrder)
+            this.PluginCommandManager.RemoveHandler($"/ecl{idx + 1}");
     }
 
     private void RegisterLinkshellCommand(string command, Guid id) {
-        this.RegisteredInternal[command] = id;
-        this.Plugin.CommandManager.AddHandler(command, new CommandInfo(LinkshellCommandHandler) {
+        this.PluginCommandManager.AddHandler(command, new PluginCommandInfo(CreateLinkshellCommandHandler(id)) {
             ShowInHelp = false,
         });
     }
 
-    private void RecentLinkshellCommandHandler(string command, string arguments)
+    private void RecentLinkshellCommandHandler(string command, ReadOnlySpan<byte> arguments)
     {
-        Plugin.Log.Warning($"Linkshell command handler actually executed: {command} {arguments}");
-
         if (this.Plugin.ConfigInfo.LastSentChannel == Guid.Empty)
         {
             Plugin.ChatGui.PrintError("The last ExtraChat linkshell you sent a message to was not known.");
             return;
         }
 
-        if (arguments.IsWhiteSpace())
+        if (arguments.Length == 0)
             this.Plugin.GameFunctions.OverrideChannel = this.Plugin.ConfigInfo.LastSentChannel;
         else
-            SendMessage(this.Plugin.ConfigInfo.LastSentChannel, Encoding.UTF8.GetBytes(arguments));
+            SendMessage(this.Plugin.ConfigInfo.LastSentChannel, arguments);
     }
 
-    private void LinkshellCommandHandler(string command, string arguments)
+    private PluginCommandInfo.HandlerDelegate CreateLinkshellCommandHandler(Guid channel)
     {
-        Plugin.Log.Warning($"Linkshell command handler actually executed: {command} {arguments}");
-
-        if (!this.RegisteredInternal.TryGetValue(command, out var channel))
+        return (_, arguments) =>
         {
-            this.Plugin.ChatGui.PrintError($"Could not find ExtraChat linkshell for command {command}.");
-            return;
-        }
-
-        if (arguments.IsWhiteSpace())
-            this.Plugin.GameFunctions.OverrideChannel = channel;
-        else
-            SendMessage(channel, Encoding.UTF8.GetBytes(arguments));
+            if (arguments.Length == 0)
+                this.Plugin.GameFunctions.OverrideChannel = channel;
+            else
+                SendMessage(channel, arguments);
+        };
     }
 
     internal void SendMessage(Guid id, ReadOnlySpan<byte> bytes) {
