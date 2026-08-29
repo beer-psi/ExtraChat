@@ -14,7 +14,7 @@ hex = "0.4"
 lazy_static = "1"
 lodestone-scraper = { git = "https://git.anna.lgbt/anna/lodestone-scraper.git" }
 log = "0.4"
-mimalloc = "0.1"
+# mimalloc = "0.1"
 parking_lot = "0.12"
 prefixed-api-key = { git = "https://git.anna.lgbt/anna/prefixed-api-key.git" }
 rand = "0.8"
