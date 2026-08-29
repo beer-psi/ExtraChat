@@ -1,4 +1,4 @@
-FROM beerpsi/cargo-chef-musl-mimalloc:latest AS chef
+FROM beerpsi/cargo-chef-musl-mimalloc:nightly AS chef
 WORKDIR /app
 
 FROM chef AS planner
