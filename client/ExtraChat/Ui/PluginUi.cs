@@ -147,15 +147,14 @@ internal class PluginUi : IDisposable {
         ImGui.End();
     }
 
-    private void DrawHelp() {
-        ImGui.PushTextWrapPos();
+    private void DrawHelp()
+    {
+        using var _ = ImRaii.TextWrapPos(0.0f);
 
         if (ImGui.Button("Reset tutorial")) {
             this.Plugin.ConfigInfo.TutorialStep = 0;
             this.Plugin.SaveConfig();
         }
-
-        ImGui.PopTextWrapPos();
     }
 
     private void DrawSettings() {
@@ -199,33 +198,37 @@ internal class PluginUi : IDisposable {
         //     ImGui.EndCombo();
         // }
 
-        if (this.Plugin.LocalPlayer is { } player) {
-            if (ImGui.TreeNodeEx($"Settings for {player.Name}{CrossWorld}{player.HomeWorld.Value.Name}")) {
+        var player = this.Plugin.PlayerState;
+
+        using (var treeNode = ImRaii.TreeNode($"Settings for {player.CharacterName}{CrossWorld}{player.HomeWorld.Value.Name}"))
+        {
+            if (treeNode.Success)
+            {
                 if (ImGui.Checkbox("Allow receiving invites", ref this.Plugin.ConfigInfo.AllowInvites)) {
                     anyChanged = true;
                     Task.Run(async () => await this.Plugin.Client.AllowInvitesToast(this.Plugin.ConfigInfo.AllowInvites));
                 }
-
-                ImGui.TreePop();
             }
         }
 
-        if (this.Plugin.Client.Status == Client.State.Connected && ImGui.TreeNodeEx("Delete account")) {
-            ImGui.PushTextWrapPos();
+        if (this.Plugin.Client.Status == Client.State.Connected)
+        {
+            using var treeNode = ImRaii.TreeNode("Delete account");
+          
+            if (treeNode.Success)
+            {
+                using var _ = ImRaii.TextWrapPos(0.0f);
+                
+                if (this.Plugin.Client.Channels.Count > 0) {
+                    ImGui.TextUnformatted("You must leave or disband all ExtraChat linkshells you are currently in before you can delete your account.");
+                } else {
+                    ImGui.TextUnformatted("Clicking the button below will permanently and irreversibly delete your account from ExtraChat's servers.");
 
-            if (this.Plugin.Client.Channels.Count > 0) {
-                ImGui.TextUnformatted("You must leave or disband all ExtraChat linkshells you are currently in before you can delete your account.");
-            } else {
-                ImGui.TextUnformatted("Clicking the button below will permanently and irreversibly delete your account from ExtraChat's servers.");
-
-                if (ImGui.Button("Delete account##actual-delete")) {
-                    Task.Run(async () => await this.Plugin.Client.DeleteAccountToast());
+                    if (ImGui.Button("Delete account##actual-delete")) {
+                        Task.Run(async () => await this.Plugin.Client.DeleteAccountToast());
+                    }
                 }
             }
-
-            ImGui.PopTextWrapPos();
-
-            ImGui.TreePop();
         }
     }
 
@@ -243,7 +246,7 @@ internal class PluginUi : IDisposable {
             var name = this.Plugin.ConfigInfo.GetName(id);
 
             if (ImGui.CollapsingHeader($"{name}###{id}-settings")) {
-                ImGui.PushID($"{id}-settings");
+                using var _ = ImRaii.PushId($"{id}-settings");
                 
                 var contained = this.Plugin.ConfigInfo.ChannelChannels.TryGetValue(id, out var output);
                 var preview = contained ? $"{output}" : "Default";
@@ -398,8 +401,6 @@ internal class PluginUi : IDisposable {
                             UIGlobals.PlayChatSoundEffect((uint)notificationSound);
                     }
                 }
-                
-                ImGui.PopID();
             }
         }
     }
@@ -463,17 +464,15 @@ internal class PluginUi : IDisposable {
         ImGui.End();
     }
 
-    private void DrawRegistrationPanel() {
-        if (this.Plugin.LocalPlayer is not { } player) {
-            return;
-        }
-
+    private void DrawRegistrationPanel()
+    {
+        var player = this.Plugin.PlayerState;
         var state = this.Plugin.Client.Status;
         if (state == Client.State.NotAuthenticated) {
             if (this.Plugin.ConfigInfo.Key != null) {
                 ImGui.TextUnformatted("Please wait...");
             } else {
-                if (ImGui.Button($"Register {player.Name}") && !this.Busy) {
+                if (ImGui.Button($"Register {player.CharacterName}") && !this.Busy) {
                     this.Busy = true;
                     this._getChallengeError = string.Empty;
                     
@@ -500,13 +499,12 @@ internal class PluginUi : IDisposable {
                     ImGui.TextColored(ImGuiColors.ErrorForeground, this._getChallengeError);
                 }
 
-                ImGui.PushTextWrapPos();
+                using var _ = ImRaii.TextWrapPos(0.0f);
                 ImGui.TextUnformatted("ExtraChat is a third-party service that allows for functionally unlimited extra linkshells that work across data centres.");
                 ImGui.TextUnformatted("In order to use ExtraChat, characters must be registered and verified using their Lodestone profile.");
                 ImGui.TextUnformatted("ExtraChat stores your character's name, home world, and Lodestone ID, as well as what ExtraChat linkshells your character is a part of and has been invited to.");
                 ImGui.TextUnformatted("Messages and linkshell names are end-to-end encrypted; the server cannot decrypt them and does not store messages.");
                 ImGui.TextUnformatted("In the event of a legal subpoena, ExtraChat will provide any information available to the legal system.");
-                ImGui.PopTextWrapPos();
             }
         }
 
@@ -515,7 +513,8 @@ internal class PluginUi : IDisposable {
         }
 
         if (state == Client.State.WaitingForVerification) {
-            ImGui.PushTextWrapPos();
+            using var _ = ImRaii.TextWrapPos(0.0f);
+           
             if (this._challenge == null) {
                 ImGui.TextUnformatted("Waiting for verification but no challenge present. This is a bug.");
             } else {
@@ -530,8 +529,9 @@ internal class PluginUi : IDisposable {
 
                 ImGui.SameLine();
 
-                if (ImGui.Button("Open profile")) {
-                    var region = this.Plugin.LocalPlayer?.HomeWorld.Value.DataCenter.Value.Region.RowId ?? 2;
+                if (ImGui.Button("Open profile"))
+                {
+                    var region = this.Plugin.PlayerState.HomeWorld.Value.DataCenter.Value.Region.RowId;
                     var sub = this.Plugin.ClientState.ClientLanguage switch {
                         ClientLanguage.Japanese => "jp",
                         ClientLanguage.English when region != 2 => "eu",
@@ -559,8 +559,6 @@ internal class PluginUi : IDisposable {
                     }).ContinueWith(_ => this.Busy = false);
                 }
             }
-
-            ImGui.PopTextWrapPos();
         }
     }
 }

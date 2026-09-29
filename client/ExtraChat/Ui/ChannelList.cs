@@ -384,7 +384,7 @@ internal class ChannelList {
         }
 
         if (rank == Rank.Invited && member.Rank == Rank.Invited) {
-            if (member.Name == this.Plugin.LocalPlayer?.Name.TextValue && member.World == this.Plugin.LocalPlayer?.HomeWorld.RowId) {
+            if (member.Name == this.Plugin.PlayerState.CharacterName && member.World == this.Plugin.PlayerState.HomeWorld.RowId) {
                 if (ImGui.Selectable("Accept invite")) {
                     Task.Run(async () => await this.Plugin.Client.Join(this._selectedChannel));
                 }

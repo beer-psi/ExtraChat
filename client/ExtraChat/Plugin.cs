@@ -52,19 +52,6 @@ public class Plugin : IAsyncDalamudPlugin {
     private IDisposable[] Integrations { get; }
     
     private readonly ReaderWriterLockSlim _localPlayerLock = new();
-    internal IPlayerCharacter? LocalPlayer {
-        get {
-            this._localPlayerLock.EnterReadLock();
-            var player = field;
-            this._localPlayerLock.ExitReadLock();
-            return player;
-        }
-        private set {
-            this._localPlayerLock.EnterWriteLock();
-            field = value;
-            this._localPlayerLock.ExitWriteLock();
-        }
-    }
 
     public Plugin() {
         SodiumInit.Init();
@@ -95,13 +82,14 @@ public class Plugin : IAsyncDalamudPlugin {
         this.ContextMenu.OnMenuOpened += this.OnMenuOpened;
     }
 
-    public async Task LoadAsync(CancellationToken token)
+    public Task LoadAsync(CancellationToken token)
     {
         if (this.ClientState.IsLoggedIn)
         {
-            this.LocalPlayer = await this.Framework.RunOnTick(() => this.ObjectTable.LocalPlayer, cancellationToken: token);
             this.Client.StartLoop();
         }
+
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -129,14 +117,12 @@ public class Plugin : IAsyncDalamudPlugin {
 
     private void OnLogin()
     {
-        this.LocalPlayer = this.ObjectTable.LocalPlayer;
         this.Client.StartLoop();
     }
 
     private void OnLogout(int type, int code)
     {
         this.Client.StopLoop();
-        this.LocalPlayer = null;
     }
 
     private unsafe void OnMenuOpened(IMenuOpenedArgs args) {

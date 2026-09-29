@@ -250,14 +250,10 @@ internal class Client : IAsyncDisposable {
     /// <returns>challenge or null if LocalPlayer is null</returns>
     /// <exception cref="Exception">if the server returns an error or unexpected output</exception>
     internal async Task<string?> GetChallenge() {
-        if (this.Plugin.LocalPlayer is not { } player) {
-            return null;
-        }
-
         this.Status = State.RetrievingChallenge;
         var response = await this.QueueMessageAndWait(new RequestKind.Register(new RegisterRequest {
-            Name = player.Name.TextValue,
-            World = (ushort) player.HomeWorld.RowId,
+            Name = this.Plugin.PlayerState.CharacterName,
+            World = (ushort)this.Plugin.PlayerState.HomeWorld.RowId,
             ChallengeCompleted = false,
         }));
 
@@ -387,14 +383,10 @@ internal class Client : IAsyncDisposable {
     /// <returns>authentication key or null if LocalPlayer was null or the challenge failed</returns>
     /// <exception cref="Exception">if the server returns an error or unexpected output</exception>
     internal async Task<string?> Register() {
-        if (this.Plugin.LocalPlayer is not { } player) {
-            return null;
-        }
-
         this.Status = State.Verifying;
         var response = await this.QueueMessageAndWait(new RequestKind.Register(new RegisterRequest {
-            Name = player.Name.TextValue,
-            World = (ushort) player.HomeWorld.RowId,
+            Name = this.Plugin.PlayerState.CharacterName,
+            World = (ushort)this.Plugin.PlayerState.HomeWorld.RowId,
             ChallengeCompleted = true,
         }));
 
@@ -788,9 +780,8 @@ internal class Client : IAsyncDisposable {
         }
 
         var channelName = this.Plugin.ConfigInfo.GetName(resp.Channel);
-
-        var self = this.Plugin.LocalPlayer;
-        var isSelf = self?.Name.TextValue == resp.Name && self.HomeWorld.RowId == resp.World;
+        var isSelf = this.Plugin.PlayerState.CharacterName == resp.Name
+                     && this.Plugin.PlayerState.HomeWorld.RowId == resp.World;
 
         switch (resp.Kind) {
             case MemberChangeKind.Invite: {
@@ -924,8 +915,6 @@ internal class Client : IAsyncDisposable {
     }
 
     private void HandleList(ListResponse resp) {
-        var self = this.Plugin.LocalPlayer;
-
         switch (resp) {
             case ListResponse.All all: {
                 this.Channels.Clear();
@@ -935,8 +924,8 @@ internal class Client : IAsyncDisposable {
                     this.Channels[channel.Id] = channel;
 
                     var member = channel.Members
-                        .FirstOrDefault(member => member.Name == self?.Name.TextValue
-                                                  && member.World == self.HomeWorld.RowId);
+                        .FirstOrDefault(member => member.Name == this.Plugin.PlayerState.CharacterName
+                                                  && member.World == this.Plugin.PlayerState.HomeWorld.RowId);
                     this.ChannelRanks.Remove(channel.Id);
                     if (member != null) {
                         this.ChannelRanks[channel.Id] = member.Rank;
@@ -994,8 +983,8 @@ internal class Client : IAsyncDisposable {
                 channel.Members = members.AllMembers.ToList();
 
                 var member = channel.Members
-                    .FirstOrDefault(member => member.Name == self?.Name.TextValue
-                                              && member.World == self.HomeWorld.RowId);
+                    .FirstOrDefault(member => member.Name == this.Plugin.PlayerState.CharacterName
+                                              && member.World == this.Plugin.PlayerState.HomeWorld.RowId);
                 this.ChannelRanks.Remove(channel.Id);
                 if (member != null) {
                     this.ChannelRanks[channel.Id] = member.Rank;
@@ -1037,9 +1026,10 @@ internal class Client : IAsyncDisposable {
             .Append(LinkTerminator);
 
         var isOutputLinkshell = outputChannel.IsLinkshell();
-        var isSelf = resp.Sender == this.Plugin.LocalPlayer?.Name.TextValue && resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
-        var homeWorldsSame = resp.World == this.Plugin.LocalPlayer?.HomeWorld.RowId;
-        var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.LocalPlayer?.CurrentWorld.RowId == resp.World;
+        var isSelf = resp.Sender == this.Plugin.PlayerState.CharacterName
+                     && resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
+        var homeWorldsSame = resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
+        var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.PlayerState.CurrentWorld.RowId == resp.World;
 
         var senderBuilder = SeStringBuilder.SharedPool.Get();
        
