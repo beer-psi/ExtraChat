@@ -6,6 +6,7 @@ using Dalamud.Interface.Utility;
 using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
+using Lumina.Excel;
 using Lumina.Excel.Sheets;
 
 namespace ExtraChat.Ui;
@@ -25,8 +26,8 @@ internal class ChannelList {
         this.Plugin = plugin;
 
         this._worlds = this.Plugin.DataManager.GetExcelSheet<World>()!
-            .Where(row => row.IsPublic)
-            .GroupBy(row => row.DataCenter.Value!)
+            .Where(row => row.IsPublic && row.Unknown0 != 0)
+            .GroupBy(row => new RowRef<WorldDCGroupType>(row.ExcelPage.Module, row.Unknown0, row.ExcelPage.Language).Value!)
             .Where(grouping => grouping.Key.Region.RowId != 0)
             .OrderBy(grouping => grouping.Key.Region.RowId)
             .ThenBy(grouping => grouping.Key.Name.ExtractText())
