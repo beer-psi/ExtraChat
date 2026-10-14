@@ -69,6 +69,33 @@ public class Plugin : IAsyncDalamudPlugin {
         this.ClientState.Logout += this.OnLogout;
         
         this.Config = this.Interface.GetPluginConfig() as Configuration ?? new Configuration();
+
+        if (this.Config.Version == 1)
+        {
+            File.Copy(ourExtraChat,
+                Path.Join(this.Interface.GetPluginConfigDirectory(), $"{this.Config.Version}.bak.json"));
+            
+            this.Config.Version = 2;
+
+            foreach (var config in this.Config.Configs.Values)
+            {
+                config.Key = null;
+                config.Channels.Clear();
+                config.CurrentChannel = Guid.Empty;
+                config.LastSentChannel = Guid.Empty;
+                config.ChannelOrder.Clear();
+                config.Aliases.Clear();
+                config.ChannelColors.Clear();
+                config.ChannelMarkers.Clear();
+                config.ChannelChannels.Clear();
+                config.ChannelSoundEffects.Clear();
+                config.ChannelSoundEffects.Clear();
+                config.ChannelPlaySoundEffectMacros.Clear();
+            }
+            
+            this.SaveConfig();
+        }
+        
         this.PluginCommandManager = new PluginCommandManager(this);
         this.Commands = new Commands(this, this.PluginCommandManager);
         this.Ipc = new Ipc(this);

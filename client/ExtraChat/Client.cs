@@ -220,7 +220,7 @@ internal class Client : IAsyncDisposable {
     }
 
     internal async Task Connect() {
-        await this.WebSocket.ConnectAsync(new Uri("wss://extrachat.annaclemens.io/"), CancellationToken.None);
+        await this.WebSocket.ConnectAsync(new Uri("wss://extrachat.beerpsi.cc/"), CancellationToken.None);
     }
 
     internal Task AuthenticateAndList() {
