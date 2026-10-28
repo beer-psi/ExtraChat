@@ -20,6 +20,15 @@ public static class Ext {
         {
             return Encoding.UTF8.GetString(span).Replace("\u3000", " ").IsWhiteSpace();
         }
+        
+        internal byte[] Concat(ReadOnlySpan<byte> other) {
+            var result = new byte[span.Length + other.Length];
+        
+            span.CopyTo(result);
+            other.CopyTo(result.AsSpan()[span.Length..]);
+
+            return result;
+        }
     }
 
     extension(ClientWebSocket client)

@@ -3,6 +3,7 @@ using System.Text;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using ExtraChat.Protocol;
 using ExtraChat.Protocol.Channels;
 using ExtraChat.Util;
@@ -38,56 +39,57 @@ internal class ChannelList {
     internal void Draw() {
         var anyChanged = false;
 
-        ImGui.PushFont(UiBuilder.IconFont);
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            var syncButton = ImGui.CalcTextSize(FontAwesomeIcon.Sync.ToIconString()).X
+                             + ImGui.GetStyle().FramePadding.X * 2;
+            // Plugin.Log.Info($"syncButton: {syncButton}");
+            var addButton = ImGui.CalcTextSize(FontAwesomeIcon.Plus.ToIconString()).X
+                            + ImGui.GetStyle().FramePadding.X * 2;
+            // Plugin.Log.Info($"addButton: {addButton}");
+            var syncOffset = ImGui.GetContentRegionAvail().X - syncButton;
+            var addOffset = ImGui.GetContentRegionAvail().X - syncButton - ImGui.GetStyle().ItemSpacing.X - addButton;
+            ImGui.SameLine(syncOffset);
 
-        var syncButton = ImGui.CalcTextSize(FontAwesomeIcon.Sync.ToIconString()).X
-                         + ImGui.GetStyle().FramePadding.X * 2;
-        // Plugin.Log.Info($"syncButton: {syncButton}");
-        var addButton = ImGui.CalcTextSize(FontAwesomeIcon.Plus.ToIconString()).X
-                        + ImGui.GetStyle().FramePadding.X * 2;
-        // Plugin.Log.Info($"addButton: {addButton}");
-        var syncOffset = ImGui.GetContentRegionAvail().X - syncButton;
-        var addOffset = ImGui.GetContentRegionAvail().X - syncButton - ImGui.GetStyle().ItemSpacing.X - addButton;
-        ImGui.SameLine(syncOffset);
-
-        if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString())) {
-            Task.Run(async () => await this.Plugin.Client.ListAll());
-        }
-
-        anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 1);
-
-        ImGui.SameLine(addOffset);
-
-        if (ImGui.Button(FontAwesomeIcon.Plus.ToIconString())) {
-            ImGui.OpenPopup("create-channel-popup");
-        }
-
-        anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 0);
-
-        ImGui.PopFont();
-
-        if (ImGui.BeginPopup("create-channel-popup")) {
-            ImGui.TextUnformatted("Create a new ExtraChat Linkshell");
-
-            ImGui.SetNextItemWidth(350 * ImGuiHelpers.GlobalScale);
-            ImGui.InputTextWithHint("##linkshell-name", "Linkshell name", ref this._createName, 64);
-
-            if (ImGui.IsWindowAppearing()) {
-                ImGui.SetKeyboardFocusHere(-1);
+            if (ImGui.Button(FontAwesomeIcon.Sync.ToIconString())) {
+                Task.Run(async () => await this.Plugin.Client.ListAll());
             }
 
-            if (!string.IsNullOrWhiteSpace(this._createName) && ImGui.Button("Create") && !this.Plugin.PluginUi.Busy) {
-                this.Plugin.PluginUi.Busy = true;
-                var name = this._createName;
-                Task.Run(async () => await this.Plugin.Client.Create(name))
-                    .ContinueWith(_ => this.Plugin.PluginUi.Busy = false);
-                ImGui.CloseCurrentPopup();
-                this._createName = string.Empty;
+            anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 1);
+
+            ImGui.SameLine(addOffset);
+
+            if (ImGui.Button(FontAwesomeIcon.Plus.ToIconString())) {
+                ImGui.OpenPopup("create-channel-popup");
             }
 
-            ImGui.EndPopup();
+            anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 0);
         }
 
+        using (var popup = ImRaii.Popup("create-channel-popup"))
+        {
+            if (popup.Success)
+            {
+                ImGui.TextUnformatted("Create a new ExtraChat Linkshell");
+
+                ImGui.SetNextItemWidth(350 * ImGuiHelpers.GlobalScale);
+                ImGui.InputTextWithHint("##linkshell-name", "Linkshell name", ref this._createName, 64);
+
+                if (ImGui.IsWindowAppearing()) {
+                    ImGui.SetKeyboardFocusHere(-1);
+                }
+
+                if (!string.IsNullOrWhiteSpace(this._createName) && ImGui.Button("Create") && !this.Plugin.ConfigWindow.Busy) {
+                    this.Plugin.ConfigWindow.Busy = true;
+                    var name = this._createName;
+                    Task.Run(async () => await this.Plugin.Client.Create(name))
+                        .ContinueWith(_ => this.Plugin.ConfigWindow.Busy = false);
+                    ImGui.CloseCurrentPopup();
+                    this._createName = string.Empty;
+                }
+            }
+        }
+        
         if (this.Plugin.Client.Channels.Count == 0 && this.Plugin.Client.InvitedChannels.Count == 0) {
             ImGui.TextUnformatted("You aren't in any linkshells yet. Try creating or joining one first.");
             goto AfterTable;
@@ -101,10 +103,12 @@ internal class ChannelList {
         }
     }
 
-    private void DrawTable(ref bool anyChanged) {
-        if (!ImGui.BeginTable("ecls-list", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit)) {
+    private void DrawTable(ref bool anyChanged)
+    {
+        using var table = ImRaii.Table("ecls-list", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit);
+        
+        if (!table.Success)
             return;
-        }
 
         ImGui.TableSetupColumn("##channels", ImGuiTableColumnFlags.WidthFixed, 125 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("##members", ImGuiTableColumnFlags.WidthStretch);
@@ -135,26 +139,24 @@ internal class ChannelList {
                 Task.Run(async () => await this.Plugin.Client.ListMembers(this._selectedChannel));
             }
 
-            if (ImGui.BeginChild("channel-info", childSize)) {
-                this.DrawInfo(ref anyChanged);
-                ImGui.EndChild();
-            }
-        }
+            using var child = ImRaii.Child("channel-info", childSize);
 
-        ImGui.EndTable();
+            if (child.Success)
+                this.DrawInfo(ref anyChanged);
+        }
     }
 
-    private void DrawChannelList(ref bool anyChanged, Vector2 childSize, IEnumerable<Guid> orderedChannels, Dictionary<Guid, int> channelOrder) {
-        if (!ImGui.BeginChild("channel-list", childSize)) {
+    private void DrawChannelList(ref bool anyChanged, Vector2 childSize, IEnumerable<Guid> orderedChannels, Dictionary<Guid, int> channelOrder)
+    {
+        using var child = ImRaii.Child("channel-list", childSize);
+        
+        if (!child.Success)
             return;
-        }
 
         var first = true;
         foreach (var id in orderedChannels) {
             this.DrawChannel(ref anyChanged, channelOrder, id, ref first);
         }
-
-        ImGui.EndChild();
     }
 
     private void DrawChannel(ref bool anyChanged, IReadOnlyDictionary<Guid, int> channelOrder, Guid id, ref bool first) {
@@ -182,9 +184,10 @@ internal class ChannelList {
             anyChanged |= ImGuiUtil.Tutorial(this.Plugin, 3);
         }
 
-        if (!ImGui.BeginPopupContextItem($"channel-list-{id}-context")) {
+        using var popup = ImRaii.ContextPopupItem($"channel-list-{id}-context");
+
+        if (!popup.Success)
             return;
-        }
 
         var invited = this.Plugin.Client.InvitedChannels.ContainsKey(id);
         if (invited) {
@@ -210,90 +213,104 @@ internal class ChannelList {
                 }
             }
 
-            if (rank == Rank.Admin && info != null && ImGui.BeginMenu($"Rename##{id}-rename")) {
-                if (ImGui.IsWindowAppearing()) {
-                    this._rename = string.Empty;
-                }
+            if (rank == Rank.Admin && info != null)
+            {
+                using var menu = ImRaii.Menu($"Rename##{id}-rename");
 
-                ImGui.SetNextItemWidth(350 * ImGuiHelpers.GlobalScale);
-                ImGui.InputTextWithHint($"##{id}-rename-input", "New name", ref this._rename, 64);
-
-                if (ImGui.IsWindowAppearing()) {
-                    ImGui.SetKeyboardFocusHere(-1);
-                }
-
-                if (ImGui.Button($"Rename##{id}-rename-button") && !string.IsNullOrWhiteSpace(this._rename)) {
-                    var newName = SecretBox.Encrypt(info.SharedSecret, Encoding.UTF8.GetBytes(this._rename));
-                    Task.Run(async () => await this.Plugin.Client.UpdateToast(id, new UpdateKind.Name(newName)));
-                    ImGui.CloseCurrentPopup();
-                }
-
-                ImGui.EndMenu();
-            }
-
-            if (ImGui.BeginMenu($"Invite##{id}-invite")) {
-                if (ImGui.IsWindowAppearing()) {
-                    this._inviteName = string.Empty;
-                    this._inviteWorld = 0;
-                }
-
-                ImGui.SetNextItemWidth(250 * ImGuiHelpers.GlobalScale);
-                ImGui.InputTextWithHint("##invite-name", "Name", ref this._inviteName, 32);
-
-                ImGui.SetNextItemWidth(250 * ImGuiHelpers.GlobalScale);
-                var preview = this._inviteWorld == 0 ? "World" : WorldUtil.WorldName(this._inviteWorld);
-                if (ImGui.BeginCombo("##invite-world", preview)) {
-                    foreach (var (dc, worlds) in this._worlds) {
-                        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int) ImGuiCol.TextDisabled]);
-                        ImGui.TextUnformatted(dc);
-                        ImGui.PopStyleColor();
-                        ImGui.Separator();
-
-                        foreach (var world in worlds) {
-                            if (ImGui.Selectable(world.Name.ExtractText(), this._inviteWorld == world.RowId)) {
-                                this._inviteWorld = (ushort) world.RowId;
-                            }
-                        }
-
-                        ImGui.Spacing();
+                if (menu.Success)
+                {
+                    if (ImGui.IsWindowAppearing()) {
+                        this._rename = string.Empty;
                     }
 
-                    ImGui.EndCombo();
+                    ImGui.SetNextItemWidth(350 * ImGuiHelpers.GlobalScale);
+                    ImGui.InputTextWithHint($"##{id}-rename-input", "New name", ref this._rename, 64);
+
+                    if (ImGui.IsWindowAppearing()) {
+                        ImGui.SetKeyboardFocusHere(-1);
+                    }
+
+                    if (ImGui.Button($"Rename##{id}-rename-button") && !string.IsNullOrWhiteSpace(this._rename)) {
+                        var newName = SecretBox.Encrypt(info.SharedSecret, Encoding.UTF8.GetBytes(this._rename));
+                        Task.Run(async () => await this.Plugin.Client.UpdateToast(id, new UpdateKind.Name(newName)));
+                        ImGui.CloseCurrentPopup();
+                    }
                 }
+            }
 
-                if (ImGui.Button($"Invite##{id}-invite-button") && !string.IsNullOrWhiteSpace(this._inviteName) && this._inviteWorld != 0) {
-                    var inviteName = this._inviteName;
-                    var inviteWorld = this._inviteWorld;
+            using (var menu = ImRaii.Menu($"Invite##{id}-invite"))
+            {
+                if (menu.Success)
+                {
+                    if (ImGui.IsWindowAppearing()) {
+                        this._inviteName = string.Empty;
+                        this._inviteWorld = 0;
+                    }
 
-                    Task.Run(async () => await this.Plugin.Client.InviteToast(inviteName, inviteWorld, id));
+                    ImGui.SetNextItemWidth(250 * ImGuiHelpers.GlobalScale);
+                    ImGui.InputTextWithHint("##invite-name", "Name", ref this._inviteName, 32);
+
+                    ImGui.SetNextItemWidth(250 * ImGuiHelpers.GlobalScale);
+                    var preview = this._inviteWorld == 0 ? "World" : WorldUtil.WorldName(this._inviteWorld);
+
+                    using (var combo = ImRaii.Combo("##invite-world", preview))
+                    {
+                        if (combo.Success)
+                        {
+                            foreach (var (dc, worlds) in this._worlds) {
+                                using (ImRaii.PushColor(ImGuiCol.Text,
+                                           ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+                                {
+                                    ImGui.TextUnformatted(dc);    
+                                }
+
+                                ImGui.Separator();
+
+                                foreach (var world in worlds) {
+                                    if (ImGui.Selectable(world.Name.ExtractText(), this._inviteWorld == world.RowId)) {
+                                        this._inviteWorld = (ushort) world.RowId;
+                                    }
+                                }
+
+                                ImGui.Spacing();
+                            }
+                        }
+                    }
+
+                    if (ImGui.Button($"Invite##{id}-invite-button") && !string.IsNullOrWhiteSpace(this._inviteName) && this._inviteWorld != 0) {
+                        var inviteName = this._inviteName;
+                        var inviteWorld = this._inviteWorld;
+
+                        Task.Run(async () => await this.Plugin.Client.InviteToast(inviteName, inviteWorld, id));
+                    }
                 }
-
-                ImGui.EndMenu();
             }
 
             ImGui.Separator();
 
-            if (ImGui.BeginMenu("Change number")) {
-                ImGui.SetNextItemWidth(150 * ImGuiHelpers.GlobalScale);
-                channelOrder.TryGetValue(id, out var refOrder);
-                var old = refOrder;
-                refOrder += 1;
-                if (ImGui.InputInt($"##{id}-order", ref refOrder)) {
-                    refOrder = Math.Max(1, refOrder) - 1;
+            using (var menu2 = ImRaii.Menu("Change number"))
+            {
+                if (menu2.Success)
+                {
+                    ImGui.SetNextItemWidth(150 * ImGuiHelpers.GlobalScale);
+                    channelOrder.TryGetValue(id, out var refOrder);
+                    var old = refOrder;
+                    refOrder += 1;
+                    if (ImGui.InputInt($"##{id}-order", ref refOrder)) {
+                        refOrder = Math.Max(1, refOrder) - 1;
 
-                    if (this.Plugin.ConfigInfo.ChannelOrder.TryGetValue(refOrder, out var other) && other != id) {
-                        // another channel already has this number, so swap
-                        this.Plugin.ConfigInfo.ChannelOrder[old] = other;
-                    } else {
-                        this.Plugin.ConfigInfo.ChannelOrder.Remove(old);
+                        if (this.Plugin.ConfigInfo.ChannelOrder.TryGetValue(refOrder, out var other) && other != id) {
+                            // another channel already has this number, so swap
+                            this.Plugin.ConfigInfo.ChannelOrder[old] = other;
+                        } else {
+                            this.Plugin.ConfigInfo.ChannelOrder.Remove(old);
+                        }
+
+                        this.Plugin.ConfigInfo.ChannelOrder[refOrder] = id;
+                        this.Plugin.SaveConfig();
+                        this.Plugin.Commands.ReregisterAll();
                     }
-
-                    this.Plugin.ConfigInfo.ChannelOrder[refOrder] = id;
-                    this.Plugin.SaveConfig();
-                    this.Plugin.Commands.ReregisterAll();
                 }
-
-                ImGui.EndMenu();
             }
 
             if (info == null) {
@@ -302,8 +319,6 @@ internal class ChannelList {
                 }
             }
         }
-
-        ImGui.EndPopup();
     }
 
     private void DrawInfo(ref bool anyChanged) {
@@ -327,7 +342,7 @@ internal class ChannelList {
             }
 
             try {
-                ImGui.TextUnformatted($"{member.Rank.Symbol()}{member.Name}{PluginUi.CrossWorld}{WorldUtil.WorldName(member.World)}");
+                ImGui.TextUnformatted($"{member.Rank.Symbol()}{member.Name}{ConfigWindow.CrossWorld}{WorldUtil.WorldName(member.World)}");
             } finally {
                 if (!member.Online) {
                     ImGui.PopStyleColor();
@@ -346,10 +361,12 @@ internal class ChannelList {
         }
     }
 
-    private void DrawMemberContextMenu(Member member, Rank rank) {
-        if (!ImGui.BeginPopupContextItem($"{this._selectedChannel}-{member.Name}@{member.World}-context")) {
+    private void DrawMemberContextMenu(Member member, Rank rank)
+    {
+        using var popup = ImRaii.ContextPopupItem($"{this._selectedChannel}-{member.Name}@{member.World}-context");
+        
+        if (!popup.Success)
             return;
-        }
 
         var cursor = ImGui.GetCursorPos();
 
@@ -396,12 +413,10 @@ internal class ChannelList {
             }
         }
 
-        if (cursor == ImGui.GetCursorPos()) {
-            ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int) ImGuiCol.TextDisabled]);
+        if (cursor == ImGui.GetCursorPos())
+        {
+            using var _ = ImRaii.PushColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]);
             ImGui.TextUnformatted("No options available");
-            ImGui.PopStyleColor();
         }
-
-        ImGui.EndPopup();
     }
 }

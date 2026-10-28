@@ -10,9 +10,6 @@ internal static class WorldUtil {
         WorldNames.Clear();
 
         var worlds = data.GetExcelSheet<World>();
-        if (worlds == null) {
-            return;
-        }
 
         foreach (var world in worlds) {
             if (!world.IsPublic) {
@@ -24,6 +21,6 @@ internal static class WorldUtil {
     }
 
     internal static string WorldName(ushort id) {
-        return WorldNames.TryGetValue(id, out var name) ? name : "???";
+        return WorldNames.GetValueOrDefault(id, "???");
     }
 }

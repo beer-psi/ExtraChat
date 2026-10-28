@@ -97,7 +97,7 @@ internal class PluginCommandManager(Plugin plugin) : IDisposable
     {
         var removed = _commandMap.TryRemove(command, out _);
 
-        if (!plugin.CommandManager.RemoveHandler(command))
+        if (!plugin.CommandManager.RemoveHandler(command) && !removed)
             plugin.Log.Warning("Command {CommandName} was registered with the plugin, but not with Dalamud?", command);
 
         return removed;

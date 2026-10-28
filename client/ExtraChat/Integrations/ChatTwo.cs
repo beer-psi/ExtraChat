@@ -62,8 +62,11 @@ internal class ChatTwo : IDisposable {
             return;
         }
 
-        if (ImGui.Selectable("Invite to ExtraChat Linkshell")) {
-            this.Plugin.PluginUi.InviteInfo = (player.PlayerName, (ushort) player.World.RowId);
+        if (ImGui.Selectable("Invite to ExtraChat Linkshell"))
+        {
+            this.Plugin.InviteWindow.Name = player.PlayerName;
+            this.Plugin.InviteWindow.World = (ushort)player.World.RowId;
+            this.Plugin.InviteWindow.IsOpen = true;
         }
     }
 }

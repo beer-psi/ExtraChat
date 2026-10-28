@@ -1,9 +1,6 @@
-﻿
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Text;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
-using Dalamud.Game.Text;
 using Dalamud.Hooking;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -14,6 +11,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using FFXIVClientStructs.FFXIV.Component.Shell;
 using Lumina.Excel.Sheets;
 using AgentId = FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentId;
+using TerritoryIntendedUse = FFXIVClientStructs.FFXIV.Client.Enums.TerritoryIntendedUse;
 
 namespace ExtraChat;
 
@@ -135,7 +133,7 @@ internal unsafe class GameFunctions : IDisposable {
     
     private void UpdateChat() {
         var agent = UIModule.Instance()->GetAgentModule()->GetAgentByInternalId(AgentId.ChatLog);
-        agent->VirtualTable->Update(agent, 0);
+        agent->Update(0);
     }
     
     private void OnClientStatusChanged(object? sender, Client.State newStatus)
@@ -223,6 +221,12 @@ internal unsafe class GameFunctions : IDisposable {
         // If this sequence is not ongoing, TempChatType is set to -2, as done by the function that executes
         // the /tell command inside ShellCommandChatReply.ExecuteCommand.
         if (uiModule->GetRaptureShellModule()->TempChatType != -2)
+            return true;
+
+        // Self-explanatory, disable chat in Keybound Brawler minigame
+        if (Plugin.DataManager.GetExcelSheet<TerritoryType>()
+                .TryGetRow(Plugin.ClientState.TerritoryType, out var territoryType)
+            && territoryType.TerritoryIntendedUse.RowId == (uint)TerritoryIntendedUse.KeyboundBrawler)
             return true;
 
         var commandSpan = command->AsSpan();

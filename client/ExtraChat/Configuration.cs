@@ -52,9 +52,7 @@ internal class ConfigInfo {
         ? channel.Name
         : "???";
 
-    internal ushort GetUiColour(Guid id) => this.ChannelColors.TryGetValue(id, out var colour)
-        ? colour
-        : Plugin.DefaultColour;
+    internal ushort GetUiColour(Guid id) => this.ChannelColors.GetValueOrDefault(id, Plugin.DefaultColour);
 
     internal string? GetMarker(Guid id) {
         var order = this.GetOrder(id);

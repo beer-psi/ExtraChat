@@ -4,6 +4,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Game.Text;
 using Dalamud.Interface.ImGuiNotification;
+using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -11,6 +12,7 @@ using ExtraChat.Integrations;
 using ExtraChat.Ui;
 using ExtraChat.Util;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using Lumina.Excel.Sheets;
 using Lumina.Extensions;
 using Lumina.Text.ReadOnly;
@@ -27,31 +29,29 @@ public class Plugin : IAsyncDalamudPlugin {
     [PluginService] internal IDalamudPluginInterface Interface { get; private set; } = null!;
     [PluginService] internal IClientState ClientState { get; private set; } = null!;
     [PluginService] internal ICommandManager CommandManager { get; private set; } = null!;
-    [PluginService] internal IContextMenu ContextMenu { get; private set; } = null!;
+    [PluginService] private IContextMenu ContextMenu { get; set; } = null!;
     [PluginService] internal IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal IDataManager DataManager { get; private set; } = null!;
-    [PluginService] internal IFramework Framework { get; private set; } = null!;
-    [PluginService] internal IGameGui GameGui { get; private set; } = null!;
-    [PluginService] internal INotificationManager NotificationManager { get; private set; } = null!;
-    [PluginService] internal IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] private INotificationManager NotificationManager { get; set; } = null!;
+    [PluginService] private IObjectTable ObjectTable { get; set; } = null!;
     [PluginService] internal IPlayerState PlayerState { get; private set; } = null!;
-    [PluginService] internal ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] internal IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] private IToastGui ToastGui { get; set; } = null!;
     [PluginService] internal IAddonLifecycle AddonLifecycle { get; private set; } = null!;
-    [PluginService] internal IGameConfig GameConfig { get; private set; } = null!;
+    [PluginService] private IGameConfig GameConfig { get; set; } = null!;
 
     internal Configuration Config { get; }
     internal ConfigInfo ConfigInfo => this.Config.GetConfig(PlayerState.ContentId);
     internal Client Client { get; }
-    internal PluginCommandManager PluginCommandManager { get; }
+    private PluginCommandManager PluginCommandManager { get; }
     internal Commands Commands { get; }
-    internal PluginUi PluginUi { get; }
     internal GameFunctions GameFunctions { get; }
     internal Ipc Ipc { get; }
     private IDisposable[] Integrations { get; }
-    
-    private readonly ReaderWriterLockSlim _localPlayerLock = new();
+
+    private readonly WindowSystem _windowSystem = new(Name);
+    internal readonly ConfigWindow ConfigWindow;
+    internal readonly InviteWindow InviteWindow;
 
     public Plugin() {
         SodiumInit.Init();
@@ -101,10 +101,18 @@ public class Plugin : IAsyncDalamudPlugin {
         this.Ipc = new Ipc(this);
         this.Client = new Client(this);
         this.GameFunctions = new GameFunctions(this, this.PluginCommandManager, this.Client);
-        this.PluginUi = new PluginUi(this);
         this.Integrations = [
             new ChatTwo(this),
         ];
+
+        this.ConfigWindow = new ConfigWindow(this);
+        this.InviteWindow = new InviteWindow(this);
+        
+        _windowSystem.AddWindow(this.ConfigWindow);
+        _windowSystem.AddWindow(this.InviteWindow);
+
+        Interface.UiBuilder.Draw += _windowSystem.Draw;
+        Interface.UiBuilder.OpenConfigUi += this.ConfigWindow.Toggle;
         
         this.ContextMenu.OnMenuOpened += this.OnMenuOpened;
     }
@@ -126,13 +134,16 @@ public class Plugin : IAsyncDalamudPlugin {
         this.ClientState.Logout -= this.OnLogout;
         this.ClientState.Login -= this.OnLogin;
         this.ContextMenu.OnMenuOpened -= this.OnMenuOpened;
-        this._localPlayerLock.Dispose();
+        
+        Interface.UiBuilder.OpenConfigUi -= this.ConfigWindow.Toggle;
+        Interface.UiBuilder.Draw -= _windowSystem.Draw;
+        
+        _windowSystem.RemoveAllWindows();
 
         foreach (var integration in this.Integrations) {
             integration.Dispose();
         }
-
-        this.PluginUi.Dispose();
+        
         this.GameFunctions.Dispose();
         await this.Client.DisposeAsync();
         this.Ipc.Dispose();
@@ -163,7 +174,15 @@ public class Plugin : IAsyncDalamudPlugin {
             return;
         }
 
+        if (ctx->CurrentContextMenuTarget == null
+            || ctx->CurrentContextMenuTarget->State == 0
+            || (ctx->CurrentContextMenuTarget->State & InfoProxyCommonList.CharacterData.OnlineStatus.OfflineExd) != 0)
+        {
+            return;
+        }
+
         var world = ctx->TargetHomeWorldId;
+
         if (world == 0) {
             return;
         }
@@ -176,14 +195,18 @@ public class Plugin : IAsyncDalamudPlugin {
 
         args.AddMenuItem(new MenuItem {
             Name = "Invite to ExtraChat Linkshell",
-            OnClicked = _ => {
-                this.PluginUi.InviteInfo = (name, (ushort) world);
+            OnClicked = _ =>
+            {
+                this.InviteWindow.Name = name;
+                this.InviteWindow.World = (ushort)world;
+                this.InviteWindow.IsOpen = true;
             },
         });
     }
 
     private void ObjectContext(IMenuOpenedArgs args, uint objectId) {
         var obj = this.ObjectTable.SearchById(objectId);
+        
         if (obj is not IPlayerCharacter chara) {
             return;
         }
@@ -192,7 +215,10 @@ public class Plugin : IAsyncDalamudPlugin {
             Name = "Invite to ExtraChat Linkshell",
             OnClicked = _ => {
                 var name = chara.Name.TextValue;
-                this.PluginUi.InviteInfo = (name, (ushort) chara.HomeWorld.RowId);
+
+                this.InviteWindow.Name = name;
+                this.InviteWindow.World = (ushort)chara.HomeWorld.RowId;
+                this.InviteWindow.IsOpen = true;
             },
         });
     }

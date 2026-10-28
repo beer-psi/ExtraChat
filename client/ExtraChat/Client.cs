@@ -346,12 +346,12 @@ internal class Client : IAsyncDisposable {
         var channelName = this.Plugin.ConfigInfo.GetName(channel);
         try {
             if (await this.Invite(name, world, channel) == null) {
-                this.Plugin.ShowError($"Could not invite {name}{PluginUi.CrossWorld}{worldName} to \"{channelName}\": not logged into ExtraChat");
+                this.Plugin.ShowError($"Could not invite {name}{ConfigWindow.CrossWorld}{worldName} to \"{channelName}\": not logged into ExtraChat");
             } else {
-                this.Plugin.ShowInfo($"Invited {name}{PluginUi.CrossWorld}{worldName} to \"{channelName}\"");
+                this.Plugin.ShowInfo($"Invited {name}{ConfigWindow.CrossWorld}{worldName} to \"{channelName}\"");
             }
         } catch (Exception ex) {
-            this.Plugin.ShowError($"Could not invite {name}{PluginUi.CrossWorld}{worldName} to \"{channelName}\": {ex.Message}");
+            this.Plugin.ShowError($"Could not invite {name}{ConfigWindow.CrossWorld}{worldName} to \"{channelName}\": {ex.Message}");
         }
     }
 
@@ -839,7 +839,7 @@ internal class Client : IAsyncDisposable {
                     this.Plugin.ShowInfo($"You have joined \"{channelName}\"");
                 } else {
                     var worldName = WorldUtil.WorldName(resp.World);
-                    this.Plugin.ShowInfo($"{resp.Name}{PluginUi.CrossWorld}{worldName} has joined \"{channelName}\"");
+                    this.Plugin.ShowInfo($"{resp.Name}{ConfigWindow.CrossWorld}{worldName} has joined \"{channelName}\"");
                 }
 
                 break;
@@ -855,7 +855,7 @@ internal class Client : IAsyncDisposable {
                     this.Plugin.ShowInfo($"You have been kicked from \"{channelName}\"");
                 } else {
                     var worldName = WorldUtil.WorldName(resp.World);
-                    this.Plugin.ShowInfo($"{resp.Name}{PluginUi.CrossWorld}{worldName} has been kicked from \"{channelName}\"");
+                    this.Plugin.ShowInfo($"{resp.Name}{ConfigWindow.CrossWorld}{worldName} has been kicked from \"{channelName}\"");
                 }
 
                 break;
@@ -868,7 +868,7 @@ internal class Client : IAsyncDisposable {
                     this.Plugin.ShowInfo($"You have left \"{channelName}\"");
                 } else {
                     var worldName = WorldUtil.WorldName(resp.World);
-                    this.Plugin.ShowInfo($"{resp.Name}{PluginUi.CrossWorld}{worldName} has left \"{channelName}\"");
+                    this.Plugin.ShowInfo($"{resp.Name}{ConfigWindow.CrossWorld}{worldName} has left \"{channelName}\"");
                 }
 
                 break;
@@ -895,7 +895,7 @@ internal class Client : IAsyncDisposable {
                     this.Plugin.ShowInfo($"You have been {verb} to {promote.Rank} in \"{channelName}\"");
                 } else {
                     var worldName = WorldUtil.WorldName(resp.World);
-                    this.Plugin.ShowInfo($"{resp.Name}{PluginUi.CrossWorld}{worldName} has been {verb} to {promote.Rank} in \"{channelName}\"");
+                    this.Plugin.ShowInfo($"{resp.Name}{ConfigWindow.CrossWorld}{worldName} has been {verb} to {promote.Rank} in \"{channelName}\"");
                 }
 
                 break;
@@ -999,7 +999,7 @@ internal class Client : IAsyncDisposable {
     }
 
     private static readonly ReadOnlySeString LinkTerminator = new(RawPayload.LinkTerminator.Data);
-    private readonly Dictionary<Guid, ReadOnlySeString> TagPayloads = new();
+    private readonly Dictionary<Guid, ReadOnlySeString> _tagPayloads = new();
 
     private void HandleMessage(MessageResponse resp) {
         var config = this.Plugin.ConfigInfo;
@@ -1013,11 +1013,11 @@ internal class Client : IAsyncDisposable {
             SecretBox.Decrypt(info.SharedSecret, resp.Message),
             this.Plugin.ConfigInfo.ShouldPlaySoundEffectMacros(resp.Channel)));
 
-        if (!TagPayloads.TryGetValue(resp.Channel, out var tagPayload))
+        if (!_tagPayloads.TryGetValue(resp.Channel, out var tagPayload))
         {
             tagPayload = new ReadOnlySeString(PayloadUtil.CreateTagPayload(resp.Channel));
 
-            TagPayloads[resp.Channel] = tagPayload;
+            _tagPayloads[resp.Channel] = tagPayload;
         }
 
         var outputBuilder = SeStringBuilder.SharedPool.Get()
@@ -1101,6 +1101,6 @@ internal class Client : IAsyncDisposable {
         this.ChannelRanks[info.Channel.Id] = Rank.Invited;
         this.Plugin.SaveConfig();
 
-        this.Plugin.ShowInfo($"Invited to join \"{name}\" by {info.Name}{PluginUi.CrossWorld}{WorldUtil.WorldName(info.World)}");
+        this.Plugin.ShowInfo($"Invited to join \"{name}\" by {info.Name}{ConfigWindow.CrossWorld}{WorldUtil.WorldName(info.World)}");
     }
 }

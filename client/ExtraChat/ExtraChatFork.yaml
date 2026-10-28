@@ -4,8 +4,8 @@ description: |-
   ExtraChat adds end-to-end encrypted, cross-data-centre, unlimited linkshells
   to the game. (Fork of official plugin with features and some fixes)
 changelog: |-
-  - Change the ExtraChat server to something I personally host for better stability. Your old ExtraChat channels and keys are backed up at pluginConfigs/ExtraChatFork/1.bak.json and can replace ExtraChat.json to move back to the official plugin.
-  - Fix all Japanese worlds being grouped into Elemental data center after patch 7.57
+  - Migrate plugin to Dalamud's stock windowing system. This allows plugin windows to respect the Look & Feel option in Dalamud settings.
+  - Fix inputs in Keybound Brawler being sent to ExtraChat linkshells if they were the active channel before entering the gamemode.
 punchline: 'Cross-data-centre linkshells with unlimited members.'
 repo_url: https://github.com/beer-psi/ExtraChat
 accepts_feedback: false

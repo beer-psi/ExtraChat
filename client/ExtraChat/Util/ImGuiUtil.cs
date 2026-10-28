@@ -3,6 +3,7 @@ using System.Text;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 
 namespace ExtraChat.Util;
 
@@ -63,53 +64,59 @@ internal static class ImGuiUtil {
             label += $"##{id}";
         }
 
-        ImGui.PushFont(UiBuilder.IconFont);
-        var ret = ImGui.Button(label);
-        ImGui.PopFont();
+        bool ret;
+        using (ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            ret = ImGui.Button(label);    
+        }
 
-        if (tooltip != null && ImGui.IsItemHovered()) {
-            ImGui.BeginTooltip();
+        if (tooltip != null && ImGui.IsItemHovered())
+        {
+            using var _ = ImRaii.Tooltip();
             ImGui.TextUnformatted(tooltip);
-            ImGui.EndTooltip();
         }
 
         return ret;
     }
 
-    internal static bool SelectableConfirm(string label, ConfirmKey keys = ConfirmKey.Ctrl, string? tooltip = null) {
-        var selectable = ImGui.Selectable(label);
-        var hovered = ImGui.IsItemHovered();
+    internal static bool SelectableConfirm(string label, ConfirmKey keys = ConfirmKey.Ctrl, string? tooltip = null)
+    {
+        var confirmHeld = Enum.GetValues<ConfirmKey>()
+            .Where(k => keys.HasFlag(k))
+            .Select(k => k switch
+                {
+                    ConfirmKey.Ctrl => ImGui.GetIO().KeyCtrl,
+                    ConfirmKey.Alt => ImGui.GetIO().KeyAlt,
+                    ConfirmKey.Shift => ImGui.GetIO().KeyShift,
+                    _ => false,
+                })
+            .Aggregate(true, (acc, c) => acc & c);
 
-        var confirmHeld = true;
-        var mods = hovered ? new StringBuilder() : null;
-        foreach (var key in Enum.GetValues<ConfirmKey>()) {
-            if (!keys.HasFlag(key)) {
-                continue;
-            }
+        bool selectable;
+        using (ImRaii.Disabled(!confirmHeld))
+        {
+            selectable = ImGui.Selectable(label);
+            
+            if ((!confirmHeld || tooltip != null) && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            {
+                using var _ = ImRaii.Tooltip();
 
-            if (hovered) {
-                if (mods!.Length != 0) {
-                    mods.Append('+');
+                string tip;
+                if (!confirmHeld)
+                {
+                    var mods = string.Join("+", Enum.GetValues<ConfirmKey>()
+                        .Where(k => keys.HasFlag(k))
+                        .Select(k => k.ToString()));
+                    var explainer = $"Hold {mods} to enable this option.";
+                    tip = tooltip == null ? explainer : $"{tooltip}\n{explainer}";
                 }
-
-                mods.Append(key.ToString());
+                else if (tooltip != null)
+                    tip = tooltip;
+                else
+                    throw new Exception("invalid state: either !confirmHeld or tooltip != null should have been true");
+                
+                ImGui.TextUnformatted(tip);
             }
-
-            var held = key switch {
-                ConfirmKey.Ctrl => ImGui.GetIO().KeyCtrl,
-                ConfirmKey.Alt => ImGui.GetIO().KeyAlt,
-                ConfirmKey.Shift => ImGui.GetIO().KeyShift,
-                _ => false,
-            };
-            confirmHeld &= held;
-        }
-
-        if (!confirmHeld && hovered) {
-            ImGui.BeginTooltip();
-            var explainer = $"Hold {mods} to enable this option.";
-            var tip = tooltip == null ? explainer : $"{tooltip}\n{explainer}";
-            ImGui.TextUnformatted(tip);
-            ImGui.EndTooltip();
         }
 
         return selectable && confirmHeld;
@@ -139,12 +146,14 @@ internal static class ImGuiUtil {
 
         ImGui.SetNextWindowPos(ImGui.GetItemRectMax() + new Vector2(2) * ImGuiHelpers.GlobalScale);
         ImGui.SetNextWindowSize(new Vector2(350, 0) * ImGuiHelpers.GlobalScale);
-        if (!ImGui.BeginPopup(popupId, ImGuiWindowFlags.AlwaysAutoResize)) {
-            return save;
-        }
 
-        ImGui.PushFont(UiBuilder.DefaultFont);
-        ImGui.PushTextWrapPos();
+        using var popup = ImRaii.Popup(popupId, ImGuiWindowFlags.AlwaysAutoResize);
+
+        if (!popup.Success)
+            return save;
+
+        using var _ = ImRaii.PushFont(UiBuilder.DefaultFont);
+        using var __ = ImRaii.TextWrapPos(0.0f);
 
         ImGui.TextUnformatted(strings[0]);
         ImGui.Separator();
@@ -176,10 +185,6 @@ internal static class ImGuiUtil {
             current = -1;
             save = true;
         }
-
-        ImGui.PopTextWrapPos();
-        ImGui.PopFont();
-        ImGui.EndPopup();
 
         return save;
     }

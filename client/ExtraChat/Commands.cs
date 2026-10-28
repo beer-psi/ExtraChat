@@ -48,8 +48,9 @@ internal class Commands : IDisposable {
         this.PluginCommandManager.RemoveHandler("/ecl");
     }
 
-    private void MainCommand(string command, ReadOnlySpan<byte> arguments) {
-        this.Plugin.PluginUi.Visible ^= true;
+    private void MainCommand(string command, ReadOnlySpan<byte> arguments)
+    {
+        this.Plugin.ConfigWindow.Toggle();
     }
 
     internal void ReregisterAll() {
