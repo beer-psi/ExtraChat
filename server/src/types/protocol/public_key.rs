@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::util::redacted::Redacted;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicKeyRequest {

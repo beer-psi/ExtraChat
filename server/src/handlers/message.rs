@@ -1,14 +1,23 @@
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use tokio::sync::RwLock;
 
-use crate::{ClientState, ErrorResponse, MessageRequest, MessageResponse, ResponseContainer, State, util, WsStream};
 use crate::types::protocol::ResponseKind;
 use crate::util::send;
+use crate::{
+    util, ClientState, ErrorResponse, MessageRequest, MessageResponse, ResponseContainer, State,
+    WsStream,
+};
 
-pub async fn message(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, req: MessageRequest) -> Result<()> {
+pub async fn message(
+    state: Arc<RwLock<State>>,
+    client_state: Arc<RwLock<ClientState>>,
+    conn: &mut WsStream,
+    number: u32,
+    req: MessageRequest,
+) -> Result<()> {
     let (lodestone_id, sender, world) = match &client_state.read().await.user {
         Some(u) => (u.lodestone_id, u.name.clone(), u.world),
         None => return Ok(()),
@@ -20,18 +29,27 @@ pub async fn message(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientS
         "select lodestone_id from user_channels where channel_id = ?",
         id,
     )
-        .fetch_all(&state.read().await.db)
-        .await
-        .context("could not query database for members")?;
+    .fetch_all(&state.read().await.db)
+    .await
+    .context("could not query database for members")?;
 
     let in_channel = members
         .iter()
         .any(|m| m.lodestone_id as u64 == lodestone_id);
     if !in_channel {
-        return send(conn, number, ErrorResponse::new(req.channel, "not in channel")).await;
+        return send(
+            conn,
+            number,
+            ErrorResponse::new(req.channel, "not in channel"),
+        )
+        .await;
     }
 
-    state.read().await.messages_sent.fetch_add(1, Ordering::SeqCst);
+    state
+        .read()
+        .await
+        .messages_sent
+        .fetch_add(1, Ordering::SeqCst);
 
     let resp = ResponseContainer {
         number: 0,
@@ -44,7 +62,13 @@ pub async fn message(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientS
     };
 
     for member in members {
-        let client = match state.read().await.clients.get(&(member.lodestone_id as u64)).cloned() {
+        let client = match state
+            .read()
+            .await
+            .clients
+            .get(&(member.lodestone_id as u64))
+            .cloned()
+        {
             Some(c) => c,
             None => continue,
         };

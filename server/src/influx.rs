@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -45,37 +45,35 @@ pub fn spawn(config: &Config, state: Arc<RwLock<State>>) {
                 // language=sqlite
                 "select count(*) as count from users"
             )
-                .fetch_one(&state.read().await.db)
-                .await
-                .ok();
+            .fetch_one(&state.read().await.db)
+            .await
+            .ok();
 
             let in_one = sqlx::query!(
                 // language=sqlite
                 "select count(distinct lodestone_id) as count from user_channels"
             )
-                .fetch_one(&state.read().await.db)
-                .await
-                .ok();
+            .fetch_one(&state.read().await.db)
+            .await
+            .ok();
 
             let num_linkshells = sqlx::query!(
                 // language=sqlite
                 "select count(*) as count from channels"
             )
-                .fetch_one(&state.read().await.db)
-                .await
-                .ok();
+            .fetch_one(&state.read().await.db)
+            .await
+            .ok();
 
             let outstanding_invites = sqlx::query!(
                 // language=sqlite
                 "select count(*) as count from channel_invites"
             )
-                .fetch_one(&state.read().await.db)
-                .await
-                .ok();
+            .fetch_one(&state.read().await.db)
+            .await
+            .ok();
 
-            let timestamp = Utc::now()
-                .timestamp_nanos_opt()
-                .unwrap_or_default();
+            let timestamp = Utc::now().timestamp_nanos_opt().unwrap_or_default();
 
             let mut line_format = format!(
                 "logged_in value={logged_in}u {timestamp}\nmessages_this_instance value={messages_this_instance}u {timestamp}\nmessages_new value={messages_new}u {timestamp}\n",
@@ -119,7 +117,8 @@ pub fn spawn(config: &Config, state: Arc<RwLock<State>>) {
 
             debug!("line_format: {}", line_format);
 
-            let res = client.post(url.clone())
+            let res = client
+                .post(url.clone())
                 .header("Authorization", format!("Token {}", influx_token))
                 .body(line_format)
                 .send()

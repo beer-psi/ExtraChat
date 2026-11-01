@@ -1,23 +1,7 @@
 pub use self::{
-    allow_invites::*,
-    authenticate::*,
-    create::*,
-    delete_account::*,
-    disband::*,
-    invite::*,
-    join::*,
-    kick::*,
-    leave::*,
-    list::*,
-    message::*,
-    ping::*,
-    promote::*,
-    public_key::*,
-    register::*,
-    secrets::*,
-    send_secrets::*,
-    update::*,
-    version::*,
+    allow_invites::*, authenticate::*, create::*, delete_account::*, disband::*, invite::*,
+    join::*, kick::*, leave::*, list::*, message::*, ping::*, promote::*, public_key::*,
+    register::*, secrets::*, send_secrets::*, update::*, version::*,
 };
 
 pub mod allow_invites;
@@ -39,4 +23,3 @@ pub mod secrets;
 pub mod send_secrets;
 pub mod update;
 pub mod version;
-

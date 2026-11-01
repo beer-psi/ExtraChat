@@ -1,16 +1,10 @@
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use lodestone_scraper::LodestoneScraper;
 use log::{debug, error, trace};
 use tokio::{
-    sync::{
-        mpsc::UnboundedReceiver,
-        RwLock,
-    },
+    sync::{mpsc::UnboundedReceiver, RwLock},
     task::JoinHandle,
     time::Instant,
 };
@@ -42,7 +36,11 @@ pub fn spawn(state: Arc<RwLock<State>>, mut rx: UnboundedReceiver<i64>) -> JoinH
     })
 }
 
-async fn update(state: &RwLock<State>, lodestone: &LodestoneScraper, lodestone_id: i64) -> Result<()> {
+async fn update(
+    state: &RwLock<State>,
+    lodestone: &LodestoneScraper,
+    lodestone_id: i64,
+) -> Result<()> {
     let info = lodestone
         .character(lodestone_id as u64)
         .await
@@ -61,7 +59,12 @@ async fn update(state: &RwLock<State>, lodestone: &LodestoneScraper, lodestone_i
         .context("could not update user")?;
 
     trace!("  [updater] before state read");
-    let client_state = state.read().await.clients.get(&(lodestone_id as u64)).cloned();
+    let client_state = state
+        .read()
+        .await
+        .clients
+        .get(&(lodestone_id as u64))
+        .cloned();
     trace!("  [updater] after state read");
     if let Some(user) = client_state {
         trace!("  [updater] before user write");

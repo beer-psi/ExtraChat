@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use uuid::Uuid;
 
-use crate::{Digest, ResponseContainer, State, types::protocol::ResponseKind, World, WsStream};
+use crate::{types::protocol::ResponseKind, Digest, ResponseContainer, State, World, WsStream};
 
 pub mod redacted;
 
@@ -16,21 +16,34 @@ pub async fn send(conn: &mut WsStream, number: u32, msg: impl Into<ResponseKind>
         kind: msg.into(),
     };
 
-    conn.send(WsMessage::Binary(rmp_serde::to_vec(&container)?)).await?;
+    conn.send(WsMessage::Binary(rmp_serde::to_vec(&container)?))
+        .await?;
     Ok(())
 }
 
-pub async fn send_to_all(state: &RwLock<State>, channel_id: Uuid, number: u32, msg: impl Into<ResponseKind>) -> Result<()> {
-    let members = get_raw_members(state, channel_id).await?
-        .into_iter()
-        .chain(get_raw_invited_members(state, channel_id).await?.into_iter());
+pub async fn send_to_all(
+    state: &RwLock<State>,
+    channel_id: Uuid,
+    number: u32,
+    msg: impl Into<ResponseKind>,
+) -> Result<()> {
+    let members = get_raw_members(state, channel_id).await?.into_iter().chain(
+        get_raw_invited_members(state, channel_id)
+            .await?
+            .into_iter(),
+    );
 
     let resp = ResponseContainer {
         number,
         kind: msg.into(),
     };
     for member in members {
-        if let Some(client) = state.read().await.clients.get(&(member.lodestone_id as u64)) {
+        if let Some(client) = state
+            .read()
+            .await
+            .clients
+            .get(&(member.lodestone_id as u64))
+        {
             client.read().await.tx.send(resp.clone()).await.ok();
         }
     }
@@ -59,7 +72,10 @@ pub async fn get_raw_members(state: &RwLock<State>, channel: Uuid) -> Result<Vec
         .context("could not get channel members")
 }
 
-pub async fn get_raw_invited_members(state: &RwLock<State>, channel: Uuid) -> Result<Vec<RawMember>> {
+pub async fn get_raw_invited_members(
+    state: &RwLock<State>,
+    channel: Uuid,
+) -> Result<Vec<RawMember>> {
     let id = channel.as_simple().to_string();
     sqlx::query_as!(
         RawMember,
@@ -81,10 +97,10 @@ pub async fn is_invited(state: &RwLock<State>, channel: Uuid, id: u64) -> Result
         channel_id,
         id,
     )
-        .fetch_one(&state.read().await.db)
-        .await
-        .context("could not get channel members")
-        .map(|x| x.count > 0)
+    .fetch_one(&state.read().await.db)
+    .await
+    .context("could not get channel members")
+    .map(|x| x.count > 0)
 }
 
 pub fn hash_key(key: &ApiKey) -> String {

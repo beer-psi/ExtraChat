@@ -1,6 +1,6 @@
+use crate::types::protocol::channel::Channel;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::types::protocol::channel::Channel;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JoinRequest {

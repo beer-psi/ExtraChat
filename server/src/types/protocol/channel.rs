@@ -26,31 +26,43 @@ impl Channel {
             "select * from channels where id = ?",
             id_str,
         )
-            .fetch_optional(&state.read().await.db)
-            .await
-            .context("could not get channel info")?;
+        .fetch_optional(&state.read().await.db)
+        .await
+        .context("could not get channel info")?;
 
         let raw_channel = match raw_channel {
             Some(channel) => channel,
             None => return Ok(None),
         };
 
-        let members: Vec<_> = futures_util::stream::iter(crate::util::get_raw_members(state, id).await?
-            .into_iter()
-            .chain(crate::util::get_raw_invited_members(state, id).await?.into_iter()))
-            .then(|member| async move {
-                ChannelMember {
-                    name: member.name,
-                    world: World::from_str(&member.world).map(crate::util::id_from_world).unwrap_or(0),
-                    rank: Rank::from_u8(member.rank as u8),
-                    online: state.read().await.clients.contains_key(&(member.lodestone_id as u64)),
-                }
-            })
-            .collect()
-            .await;
+        let members: Vec<_> = futures_util::stream::iter(
+            crate::util::get_raw_members(state, id)
+                .await?
+                .into_iter()
+                .chain(
+                    crate::util::get_raw_invited_members(state, id)
+                        .await?
+                        .into_iter(),
+                ),
+        )
+        .then(|member| async move {
+            ChannelMember {
+                name: member.name,
+                world: World::from_str(&member.world)
+                    .map(crate::util::id_from_world)
+                    .unwrap_or(0),
+                rank: Rank::from_u8(member.rank as u8),
+                online: state
+                    .read()
+                    .await
+                    .clients
+                    .contains_key(&(member.lodestone_id as u64)),
+            }
+        })
+        .collect()
+        .await;
 
-        let id = Uuid::from_str(&raw_channel.id)
-            .context("invalid channel id")?;
+        let id = Uuid::from_str(&raw_channel.id).context("invalid channel id")?;
 
         Ok(Some(Self {
             id,
@@ -149,7 +161,10 @@ impl SimpleChannel {
         Ok(channels)
     }
 
-    pub async fn get_invites_for_user(state: &RwLock<State>, lodestone_id: u64) -> Result<Vec<Self>> {
+    pub async fn get_invites_for_user(
+        state: &RwLock<State>,
+        lodestone_id: u64,
+    ) -> Result<Vec<Self>> {
         let lodestone_id_i = lodestone_id as i64;
 
         let all_channels = sqlx::query!(

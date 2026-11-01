@@ -6,15 +6,27 @@ use chrono::{Duration, Utc};
 use log::trace;
 use tokio::sync::RwLock;
 
-use crate::{AuthenticateRequest, AuthenticateResponse, ClientState, State, User, util, World, WsStream};
+use crate::{
+    util, AuthenticateRequest, AuthenticateResponse, ClientState, State, User, World, WsStream,
+};
 
-pub async fn authenticate(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, req: AuthenticateRequest) -> anyhow::Result<()> {
+pub async fn authenticate(
+    state: Arc<RwLock<State>>,
+    client_state: Arc<RwLock<ClientState>>,
+    conn: &mut WsStream,
+    number: u32,
+    req: AuthenticateRequest,
+) -> anyhow::Result<()> {
     if client_state.read().await.user.is_some() {
-        return util::send(conn, number, AuthenticateResponse::error("already logged in")).await;
+        return util::send(
+            conn,
+            number,
+            AuthenticateResponse::error("already logged in"),
+        )
+        .await;
     }
 
-    let key = prefixed_api_key::parse(&*req.key)
-        .context("could not parse key")?;
+    let key = prefixed_api_key::parse(&*req.key).context("could not parse key")?;
     let hash = util::hash_key(&key);
     let user = sqlx::query!(
         // language=sqlite
@@ -22,9 +34,9 @@ pub async fn authenticate(state: Arc<RwLock<State>>, client_state: Arc<RwLock<Cl
         key.short_token,
         hash,
     )
-        .fetch_optional(&state.read().await.db)
-        .await
-        .context("could not query database for user")?;
+    .fetch_optional(&state.read().await.db)
+    .await
+    .context("could not query database for user")?;
     let user = match user {
         Some(u) => u,
         None => return util::send(conn, number, AuthenticateResponse::error("invalid key")).await,
@@ -56,12 +68,23 @@ pub async fn authenticate(state: Arc<RwLock<State>>, client_state: Arc<RwLock<Cl
     trace!("  [authenticate] after user write");
 
     trace!("  [authenticate] before state write 1");
-    state.write().await.clients.insert(user.lodestone_id as u64, Arc::clone(&client_state));
+    state
+        .write()
+        .await
+        .clients
+        .insert(user.lodestone_id as u64, Arc::clone(&client_state));
     trace!("  [authenticate] before state write 2");
-    state.write().await.ids.insert((user.name, util::id_from_world(world)), user.lodestone_id as u64);
+    state.write().await.ids.insert(
+        (user.name, util::id_from_world(world)),
+        user.lodestone_id as u64,
+    );
     trace!("  [authenticate] after state writes");
 
-    if Utc::now().naive_utc().signed_duration_since(user.last_updated) >= Duration::hours(2) {
+    if Utc::now()
+        .naive_utc()
+        .signed_duration_since(user.last_updated)
+        >= Duration::hours(2)
+    {
         state.read().await.updater_tx.send(user.lodestone_id).ok();
     }
 

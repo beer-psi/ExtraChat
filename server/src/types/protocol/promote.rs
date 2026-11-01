@@ -1,6 +1,6 @@
+use crate::types::protocol::channel::Rank;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::types::protocol::channel::Rank;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteRequest {

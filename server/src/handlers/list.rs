@@ -5,19 +5,23 @@ use anyhow::{Context, Result};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::{ClientState, State, types::protocol::{
-    channel::{
-        Channel,
-        ChannelMember,
-        Rank,
-        SimpleChannel,
-    },
-    ListRequest,
-    ListResponse,
-}, util::send, World, WsStream};
 use crate::util::RawMember;
+use crate::{
+    types::protocol::{
+        channel::{Channel, ChannelMember, Rank, SimpleChannel},
+        ListRequest, ListResponse,
+    },
+    util::send,
+    ClientState, State, World, WsStream,
+};
 
-pub async fn list(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, req: ListRequest) -> Result<()> {
+pub async fn list(
+    state: Arc<RwLock<State>>,
+    client_state: Arc<RwLock<ClientState>>,
+    conn: &mut WsStream,
+    number: u32,
+    req: ListRequest,
+) -> Result<()> {
     let lodestone_id = match &client_state.read().await.user {
         Some(u) => u.lodestone_id,
         None => return Ok(()),
@@ -65,9 +69,9 @@ async fn get_full_channels(lodestone_id: u64, state: &RwLock<State>) -> Result<V
         "select channel_id from user_channels where lodestone_id = ?",
         lodestone_id_i,
     )
-        .fetch_all(&state.read().await.db)
-        .await
-        .context("failed to fetch channel ids")?;
+    .fetch_all(&state.read().await.db)
+    .await
+    .context("failed to fetch channel ids")?;
 
     let ids: Vec<&str> = channel_ids
         .iter()
@@ -83,9 +87,9 @@ async fn get_full_invites(lodestone_id: u64, state: &RwLock<State>) -> Result<Ve
         "select channel_id from channel_invites where invited = ?",
         lodestone_id_i,
     )
-        .fetch_all(&state.read().await.db)
-        .await
-        .context("failed to fetch channel ids")?;
+    .fetch_all(&state.read().await.db)
+    .await
+    .context("failed to fetch channel ids")?;
 
     let ids: Vec<&str> = channel_ids
         .iter()
@@ -100,7 +104,11 @@ async fn get_channels(lodestone_id: u64, state: &RwLock<State>) -> Result<Vec<Si
         .context("could not get channels for user")
 }
 
-async fn get_members(lodestone_id: u64, state: &RwLock<State>, channel_id: Uuid) -> Result<Vec<ChannelMember>> {
+async fn get_members(
+    lodestone_id: u64,
+    state: &RwLock<State>,
+    channel_id: Uuid,
+) -> Result<Vec<ChannelMember>> {
     let lodestone_id_i = lodestone_id as i64;
 
     let channel_id_str = channel_id.as_simple().to_string();
@@ -136,7 +144,11 @@ async fn get_members(lodestone_id: u64, state: &RwLock<State>, channel_id: Uuid)
             Err(_) => continue,
         };
 
-        let online = state.read().await.clients.contains_key(&(user.lodestone_id as u64));
+        let online = state
+            .read()
+            .await
+            .clients
+            .contains_key(&(user.lodestone_id as u64));
         members.push(ChannelMember {
             name: user.name,
             world: crate::util::id_from_world(world),

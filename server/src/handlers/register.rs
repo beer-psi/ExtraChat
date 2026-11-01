@@ -7,18 +7,28 @@ use log::warn;
 use rand::RngCore;
 use tokio::sync::RwLock;
 
-use crate::{types::protocol::FailureReason, util::{hash_key, send, world_from_id}, ClientState, RegisterRequest, RegisterResponse, State, WsStream};
+use crate::{
+    types::protocol::FailureReason,
+    util::{hash_key, send, world_from_id},
+    ClientState, RegisterRequest, RegisterResponse, State, WsStream,
+};
 
-pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, req: RegisterRequest) -> Result<()> {
+pub async fn register(
+    state: Arc<RwLock<State>>,
+    _client_state: Arc<RwLock<ClientState>>,
+    conn: &mut WsStream,
+    number: u32,
+    req: RegisterRequest,
+) -> Result<()> {
     let scraper = LodestoneScraper::default();
 
-    let world = world_from_id(req.world)
-        .context("invalid world id")?;
+    let world = world_from_id(req.world).context("invalid world id")?;
 
     // look up character
     let mut page = 1;
     let character = loop {
-        let search = scraper.character_search()
+        let search = scraper
+            .character_search()
             .name(&req.name)
             .world(world)
             .page(page)
@@ -42,17 +52,20 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
 
     // get challenge
     let challenge: Option<_> = sqlx::query!(
-            // language=sqlite
-            "select challenge, created_at from verifications where lodestone_id = ?",
-            lodestone_id,
-        )
-        .fetch_optional(&state.read().await.db)
-        .await
-        .context("could not query database for verification")?;
+        // language=sqlite
+        "select challenge, created_at from verifications where lodestone_id = ?",
+        lodestone_id,
+    )
+    .fetch_optional(&state.read().await.db)
+    .await
+    .context("could not query database for verification")?;
 
     if !req.challenge_completed || challenge.is_none() {
         let generate = match &challenge {
-            Some(r) if Utc::now().signed_duration_since(Utc.from_utc_datetime(&r.created_at)) > Duration::minutes(5) => {
+            Some(r)
+                if Utc::now().signed_duration_since(Utc.from_utc_datetime(&r.created_at))
+                    > Duration::minutes(5) =>
+            {
                 // set up a challenge if one hasn't been set up in the last five minutes
                 true
             }
@@ -81,8 +94,8 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
                     lodestone_id,
                     challenge,
                 )
-                    .execute(&state.read().await.db)
-                    .await?;
+                .execute(&state.read().await.db)
+                .await?;
 
                 challenge
             }
@@ -90,9 +103,7 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
             None => unreachable!(),
         };
 
-        send(conn, number, RegisterResponse::Challenge {
-            challenge,
-        }).await?;
+        send(conn, number, RegisterResponse::Challenge { challenge }).await?;
         return Ok(());
     }
 
@@ -107,9 +118,14 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
         Ok(c) => c,
         Err(e) => {
             warn!("missing character {}: {e:#}", character.id);
-            send(conn, number, RegisterResponse::Failure {
-                reason: FailureReason::MissingCharacter,
-            }).await?;
+            send(
+                conn,
+                number,
+                RegisterResponse::Failure {
+                    reason: FailureReason::MissingCharacter,
+                },
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -117,18 +133,28 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
     let profile_text = match chara_info.profile {
         Some(p) => p.profile_text,
         None => {
-            send(conn, number, RegisterResponse::Failure {
-                reason: FailureReason::PrivateProfile,
-            }).await?;
+            send(
+                conn,
+                number,
+                RegisterResponse::Failure {
+                    reason: FailureReason::PrivateProfile,
+                },
+            )
+            .await?;
             return Ok(());
         }
     };
 
     let verified = profile_text.contains(&challenge.challenge);
     if !verified {
-        send(conn, number, RegisterResponse::Failure {
-             reason: FailureReason::ChallengeNotFound,
-        }).await?;
+        send(
+            conn,
+            number,
+            RegisterResponse::Failure {
+                reason: FailureReason::ChallengeNotFound,
+            },
+        )
+        .await?;
         return Ok(());
     }
 
@@ -137,9 +163,9 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
         "delete from verifications where lodestone_id = ?",
         lodestone_id,
     )
-        .execute(&state.read().await.db)
-        .await
-        .context("could not remove verification")?;
+    .execute(&state.read().await.db)
+    .await
+    .context("could not remove verification")?;
 
     let key = prefixed_api_key::generate("extrachat", None);
     let hash = hash_key(&key);
@@ -163,13 +189,18 @@ pub async fn register(state: Arc<RwLock<State>>, _client_state: Arc<RwLock<Clien
         key.short_token,
         hash,
     )
-        .execute(&state.read().await.db)
-        .await
-        .context("could not insert user")?;
+    .execute(&state.read().await.db)
+    .await
+    .context("could not insert user")?;
 
-    send(conn, number, RegisterResponse::Success {
-        key: key.to_string().into(),
-    }).await?;
+    send(
+        conn,
+        number,
+        RegisterResponse::Success {
+            key: key.to_string().into(),
+        },
+    )
+    .await?;
 
     Ok(())
 }

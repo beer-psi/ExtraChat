@@ -1,6 +1,6 @@
+use crate::util::redacted::Redacted;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::util::redacted::Redacted;
 
 /// A user sends this request if they have lost their
 /// shared secret for a channel.

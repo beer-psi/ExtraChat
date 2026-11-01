@@ -2,51 +2,45 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use lodestone_scraper::lodestone_parser::ffxiv_types::World;
-use log::{debug, error, info, Level, LevelFilter, warn};
+use log::{debug, error, info, warn, Level, LevelFilter};
 use rustyline::history::DefaultHistory;
 use sha3::Digest;
-use sqlx::{ConnectOptions, Executor, Pool, Sqlite};
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{ConnectOptions, Executor, Pool, Sqlite};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tokio::sync::RwLock;
-use tokio_tungstenite::{
-    tungstenite::Message as WsMessage,
-    WebSocketStream,
-};
+use tokio_tungstenite::{tungstenite::Message as WsMessage, WebSocketStream};
 use uuid::Uuid;
 
+use crate::handlers::SecretsRequestInfo;
+use crate::types::config::Config;
+use crate::types::protocol::channel::Rank;
+use crate::types::protocol::{
+    AnnounceResponse, AuthenticateRequest, AuthenticateResponse, ErrorResponse, ResponseKind,
+};
 use crate::types::{
     protocol::{
-        MessageRequest,
-        MessageResponse,
-        RegisterRequest,
-        RegisterResponse,
-        RequestContainer,
-        RequestKind,
-        ResponseContainer,
+        MessageRequest, MessageResponse, RegisterRequest, RegisterResponse, RequestContainer,
+        RequestKind, ResponseContainer,
     },
     user::User,
 };
-use crate::handlers::SecretsRequestInfo;
-use crate::types::config::Config;
-use crate::types::protocol::{AnnounceResponse, AuthenticateRequest, AuthenticateResponse, ErrorResponse, ResponseKind};
-use crate::types::protocol::channel::Rank;
 
-pub mod types;
 pub mod handlers;
-pub mod util;
-pub mod updater;
-pub mod logging;
 pub mod influx;
+pub mod logging;
+pub mod types;
+pub mod updater;
+pub mod util;
 
 // #[global_allocator]
 // static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -67,10 +61,16 @@ impl State {
         let msg = msg.into();
 
         for client in self.clients.values() {
-            client.read().await.tx.send(ResponseContainer {
-                number: 0,
-                kind: ResponseKind::Announce(AnnounceResponse::new(&msg)),
-            }).await.ok();
+            client
+                .read()
+                .await
+                .tx
+                .send(ResponseContainer {
+                    number: 0,
+                    kind: ResponseKind::Announce(AnnounceResponse::new(&msg)),
+                })
+                .await
+                .ok();
         }
     }
 
@@ -87,9 +87,9 @@ impl State {
             name,
             world_name,
         )
-            .fetch_optional(&state.read().await.db)
-            .await
-            .ok()?;
+        .fetch_optional(&state.read().await.db)
+        .await
+        .ok()?;
 
         id.map(|id| id.lodestone_id as u64)
     }
@@ -102,11 +102,11 @@ async fn main() -> Result<()> {
     logging::setup()?;
 
     // get config
-    let config_path = std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_string());
-    let config_toml = std::fs::read_to_string(config_path)
-        .context("couldn't read config file")?;
-    let config: Config = toml::from_str(&config_toml)
-        .context("couldn't parse config file")?;
+    let config_path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "config.toml".to_string());
+    let config_toml = std::fs::read_to_string(config_path).context("couldn't read config file")?;
+    let config: Config = toml::from_str(&config_toml).context("couldn't parse config file")?;
 
     // set up database pool
     let options = SqliteConnectOptions::new()
@@ -114,17 +114,21 @@ async fn main() -> Result<()> {
         .filename(&config.database.path);
 
     let pool = SqlitePoolOptions::new()
-        .after_connect(|conn, _| Box::pin(async move {
-            conn.execute(
-                // language=sqlite
-                "PRAGMA foreign_keys = ON;"
-            ).await?;
-            Ok(())
-        }))
+        .after_connect(|conn, _| {
+            Box::pin(async move {
+                conn.execute(
+                    // language=sqlite
+                    "PRAGMA foreign_keys = ON;",
+                )
+                .await?;
+                Ok(())
+            })
+        })
         .connect_with(options)
         .await
         .context("could not connect to database")?;
-    MIGRATOR.run(&pool)
+    MIGRATOR
+        .run(&pool)
         .await
         .context("could not run database migrations")?;
 
@@ -142,7 +146,8 @@ async fn main() -> Result<()> {
         updater_tx,
     }));
 
-    let listening_on = server.local_addr()
+    let listening_on = server
+        .local_addr()
         .ok()
         .and_then(|addr| addr.as_pathname().map(ToOwned::to_owned))
         .and_then(|addr| addr.to_str().map(ToOwned::to_owned))
@@ -218,9 +223,7 @@ async fn main() -> Result<()> {
 
                 info!(
                     "Clients: {}, messages sent: {} (+{})",
-                    clients,
-                    messages,
-                    diff,
+                    clients, messages, diff,
                 );
                 tokio::time::sleep(Duration::from_secs(60)).await;
             }
@@ -298,9 +301,9 @@ impl ClientState {
             channel_id_str,
             id,
         )
-            .fetch_one(&state.read().await.db)
-            .await
-            .context("could not get count")?;
+        .fetch_one(&state.read().await.db)
+        .await
+        .context("could not get count")?;
 
         Ok(members.count > 0)
     }
@@ -319,14 +322,18 @@ impl ClientState {
             channel_id_str,
             id,
         )
-            .fetch_optional(&state.read().await.db)
-            .await
-            .context("could not get rank")?;
+        .fetch_optional(&state.read().await.db)
+        .await
+        .context("could not get rank")?;
 
         Ok(rank.map(|rank| Rank::from_u8(rank.rank as u8)))
     }
 
-    pub async fn get_rank_invite(&self, channel_id: Uuid, state: &RwLock<State>) -> Result<Option<Rank>> {
+    pub async fn get_rank_invite(
+        &self,
+        channel_id: Uuid,
+        state: &RwLock<State>,
+    ) -> Result<Option<Rank>> {
         if let Some(rank) = self.get_rank(channel_id, state).await? {
             return Ok(Some(rank));
         }
@@ -344,10 +351,10 @@ impl ClientState {
             channel_id_str,
             id,
         )
-            .fetch_one(&state.read().await.db)
-            .await
-            .context("could not get count")?
-            .count;
+        .fetch_one(&state.read().await.db)
+        .await
+        .context("could not get count")?
+        .count;
 
         if count > 0 {
             Ok(Some(Rank::Invited))
@@ -483,7 +490,11 @@ async fn client_loop(state: Arc<RwLock<State>>, mut conn: WsStream) -> Result<()
 
     if let Some(user) = &client_state.read().await.user {
         state.write().await.clients.remove(&user.lodestone_id);
-        state.write().await.ids.remove(&(user.name.clone(), util::id_from_world(user.world)));
+        state
+            .write()
+            .await
+            .ids
+            .remove(&(user.name.clone(), util::id_from_world(user.world)));
     }
 
     debug!("client thread ended");

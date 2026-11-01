@@ -18,9 +18,7 @@ pub struct AuthenticateResponse {
 
 impl AuthenticateResponse {
     pub fn success() -> Self {
-        Self {
-            error: None,
-        }
+        Self { error: None }
     }
 
     pub fn error(error: impl Into<String>) -> Self {

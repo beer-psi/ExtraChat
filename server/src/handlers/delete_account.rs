@@ -3,13 +3,26 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use tokio::sync::RwLock;
 
-use crate::{ClientState, ErrorResponse, State, WsStream};
 use crate::types::protocol::{DeleteAccountRequest, DeleteAccountResponse};
+use crate::{ClientState, ErrorResponse, State, WsStream};
 
-pub async fn delete_account(state: Arc<RwLock<State>>, client_state: Arc<RwLock<ClientState>>, conn: &mut WsStream, number: u32, _req: DeleteAccountRequest) -> Result<()> {
+pub async fn delete_account(
+    state: Arc<RwLock<State>>,
+    client_state: Arc<RwLock<ClientState>>,
+    conn: &mut WsStream,
+    number: u32,
+    _req: DeleteAccountRequest,
+) -> Result<()> {
     let id = match client_state.read().await.lodestone_id() {
         Some(id) => id,
-        None => return crate::util::send(conn, number, ErrorResponse::new(None, "no Lodestone ID? this is a bug")).await,
+        None => {
+            return crate::util::send(
+                conn,
+                number,
+                ErrorResponse::new(None, "no Lodestone ID? this is a bug"),
+            )
+            .await
+        }
     };
     let lodestone_id = id as i64;
 
@@ -18,12 +31,17 @@ pub async fn delete_account(state: Arc<RwLock<State>>, client_state: Arc<RwLock<
         "select count(*) as count from user_channels where lodestone_id = ?",
         lodestone_id,
     )
-        .fetch_one(&state.read().await.db)
-        .await
-        .context("could not get channel count")?;
+    .fetch_one(&state.read().await.db)
+    .await
+    .context("could not get channel count")?;
 
     if channels.count > 0 {
-        return crate::util::send(conn, number, ErrorResponse::new(None, "leave all linkshells first")).await;
+        return crate::util::send(
+            conn,
+            number,
+            ErrorResponse::new(None, "leave all linkshells first"),
+        )
+        .await;
     }
 
     sqlx::query!(
@@ -31,9 +49,9 @@ pub async fn delete_account(state: Arc<RwLock<State>>, client_state: Arc<RwLock<
         "delete from users where lodestone_id = ?",
         lodestone_id,
     )
-        .execute(&state.read().await.db)
-        .await
-        .context("could not delete user")?;
+    .execute(&state.read().await.db)
+    .await
+    .context("could not delete user")?;
 
     crate::util::send(conn, number, DeleteAccountResponse {}).await
 }

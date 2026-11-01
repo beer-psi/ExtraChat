@@ -2,9 +2,9 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sqlx::{Database, Encode, Type};
 use sqlx::database::HasArguments;
 use sqlx::encode::IsNull;
+use sqlx::{Database, Encode, Type};
 
 #[repr(transparent)]
 pub struct Redacted<T>(T);
@@ -64,31 +64,46 @@ impl<T> From<T> for Redacted<T> {
 }
 
 impl<T: Serialize> Serialize for Redacted<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         self.0.serialize(serializer)
     }
 }
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Redacted<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         T::deserialize(deserializer).map(Redacted)
     }
 }
 
 impl<T: serde_bytes::Serialize> serde_bytes::Serialize for Redacted<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         serde_bytes::Serialize::serialize(&self.0, serializer)
     }
 }
 
 impl<'de, T: serde_bytes::Deserialize<'de>> serde_bytes::Deserialize<'de> for Redacted<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         serde_bytes::Deserialize::deserialize(deserializer).map(Redacted)
     }
 }
 
 impl<'q, DB: Database, T: Encode<'q, DB>> Encode<'q, DB> for Redacted<T> {
-    fn encode(self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull where Self: Sized {
+    fn encode(self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+    where
+        Self: Sized,
+    {
         self.0.encode(buf)
     }
 
