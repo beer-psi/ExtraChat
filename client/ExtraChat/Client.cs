@@ -1019,38 +1019,44 @@ internal class Client : IAsyncDisposable {
 
             _tagPayloads[resp.Channel] = tagPayload;
         }
+        
+        var senderBuilder = SeStringBuilder.SharedPool.Get();
+        var isSelf = resp.Sender == this.Plugin.PlayerState.CharacterName
+                     && resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
 
+        // Tsu Kuri@Tonberry is a Discord <-> ExtraChat bridge. 
+        if (resp is { Sender: "Tsu Kuri", World: 72 })
+            senderBuilder.Append("DISCORD");
+        else
+        {
+            var homeWorldsSame = resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
+            var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.PlayerState.CurrentWorld.RowId == resp.World;
+            
+            if (isSelf)
+                senderBuilder.Append(resp.Sender);
+            else
+                senderBuilder.PushLinkCharacter(resp.Sender, resp.World).Append(resp.Sender).PopLink();
+            
+            if (!isSelf && !homeWorldsSameAndOnHomeWorld)
+            {
+                senderBuilder.AppendIcon((uint)BitmapFontIcon.CrossWorld);
+
+                var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name;
+
+                if (world != null)
+                    senderBuilder.Append(world);
+                else
+                    senderBuilder.Append($"[Unknown {resp.World}]");
+            }
+        }
+            
+        var sender = senderBuilder.ToReadOnlySeString();
         var outputBuilder = SeStringBuilder.SharedPool.Get()
             // Add a tag payload for filtering
             .Append(tagPayload)
             .Append(LinkTerminator);
 
         var isOutputLinkshell = outputChannel.IsLinkshell();
-        var isSelf = resp.Sender == this.Plugin.PlayerState.CharacterName
-                     && resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
-        var homeWorldsSame = resp.World == this.Plugin.PlayerState.HomeWorld.RowId;
-        var homeWorldsSameAndOnHomeWorld = homeWorldsSame && this.Plugin.PlayerState.CurrentWorld.RowId == resp.World;
-
-        var senderBuilder = SeStringBuilder.SharedPool.Get();
-       
-        if (isSelf)
-            senderBuilder.Append(resp.Sender);
-        else
-            senderBuilder.PushLinkCharacter(resp.Sender, resp.World).Append(resp.Sender).PopLink();
-            
-        if (!isSelf && !homeWorldsSameAndOnHomeWorld)
-        {
-            senderBuilder.AppendIcon((uint)BitmapFontIcon.CrossWorld);
-
-            var world = this.Plugin.DataManager.GetExcelSheet<World>().GetRowOrDefault(resp.World)?.Name;
-
-            if (world != null)
-                senderBuilder.Append(world);
-            else
-                senderBuilder.Append($"[Unknown {resp.World}]");
-        }
-            
-        var sender = senderBuilder.ToReadOnlySeString();
 
         if (!isOutputLinkshell)
         {
