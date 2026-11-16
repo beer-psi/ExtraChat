@@ -45,6 +45,7 @@ internal unsafe class GameFunctions : IDisposable {
     
     private Hook<AgentLookingForGroup.Delegates.PopulateListingData> PopulateListingHook { get; init; }
     internal AgentLookingForGroup.Detailed CurrentDetailedPost { get; private set; }
+    internal DateTimeOffset PopulatedDetailedPostAt { get; private set; } = DateTimeOffset.MinValue;
 
     internal Guid OverrideChannel
     {
@@ -95,6 +96,7 @@ internal unsafe class GameFunctions : IDisposable {
         if (listingData != null)
         {
             CurrentDetailedPost = *listingData;
+            PopulatedDetailedPostAt = DateTimeOffset.UtcNow;
             // this.Plugin.Log.Debug(Newtonsoft.Json.JsonConvert.SerializeObject(new PartyFinderDetailedListing(CurrentDetailedPost)));
         }
 

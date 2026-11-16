@@ -144,6 +144,14 @@ internal class Commands : IDisposable {
 
             if (listingId != this.Plugin.GameFunctions.CurrentDetailedPost.ListingId)
                 break;
+            
+            var timeSincePopulated =
+                (uint)(DateTimeOffset.UtcNow - this.Plugin.GameFunctions.PopulatedDetailedPostAt).TotalSeconds;
+            var listing = new PartyFinderDetailedListing(this.Plugin.GameFunctions.CurrentDetailedPost);
+
+            listing.TimeLeft = listing.TimeLeft >= timeSincePopulated
+                ? listing.TimeLeft - timeSincePopulated
+                : 0;
 
             var builder = SeStringBuilder.SharedPool.Get()
                 .Append(ross)
@@ -152,9 +160,7 @@ internal class Commands : IDisposable {
                     .AppendUIntExpression(0)
                     .AppendUIntExpression(0)
                     .AppendUIntExpression(0)
-                    .AppendStringExpression(
-                        JsonConvert.SerializeObject(
-                            new PartyFinderDetailedListing(this.Plugin.GameFunctions.CurrentDetailedPost)))
+                    .AppendStringExpression(JsonConvert.SerializeObject(listing))
                 .EndMacro()
                 .PopLink();
             var appended = builder.ToReadOnlySeString();
