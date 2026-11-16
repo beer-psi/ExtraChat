@@ -5,6 +5,7 @@ using Dalamud.Hooking;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Client.UI.Shell;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -41,6 +42,9 @@ internal unsafe class GameFunctions : IDisposable {
     private Hook<ProcessCommandWithContext> ProcessCommandWithContextHook { get; init; }
     private delegate void ProcessCommandWithContext(
         ShellCommandModule* self, Utf8String* command, UIModule* uiModule, ShellCommandInterface.CommandContext* ctx, int evaluateTextCommandReturn);
+    
+    private Hook<AgentLookingForGroup.Delegates.PopulateListingData> PopulateListingHook { get; init; }
+    internal AgentLookingForGroup.Detailed CurrentDetailedPost { get; private set; }
 
     internal Guid OverrideChannel
     {
@@ -60,11 +64,16 @@ internal unsafe class GameFunctions : IDisposable {
 
         this.Plugin.GameInteropProvider.InitializeFromAttributes(this);
         
+        PopulateListingHook = this.Plugin.GameInteropProvider.HookFromAddress<AgentLookingForGroup.Delegates.PopulateListingData>(
+            AgentLookingForGroup.Addresses.PopulateListingData.Value,
+            PopulateListingDataDetour);
+        
         this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRefresh, "ChatLog", OnAddonChatLogPreRefresh);
         this.Plugin.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "ChatLog", OnAddonChatLogPostRefresh);
         
         this.SetChatChannelHook!.Enable();
         this.ProcessCommandWithContextHook!.Enable();
+        this.PopulateListingHook.Enable();
 
         client.StatusChanged += OnClientStatusChanged;
     }
@@ -73,11 +82,23 @@ internal unsafe class GameFunctions : IDisposable {
     {
         this.Plugin.Client.StatusChanged -= OnClientStatusChanged;
         
+        this.PopulateListingHook.Dispose();
         this.ProcessCommandWithContextHook.Dispose();
         this.SetChatChannelHook.Dispose();
         
         this.Plugin.AddonLifecycle.UnregisterListener(OnAddonChatLogPostRefresh);
         this.Plugin.AddonLifecycle.UnregisterListener(OnAddonChatLogPreRefresh);
+    }
+
+    private void PopulateListingDataDetour(AgentLookingForGroup* self, AgentLookingForGroup.Detailed* listingData)
+    {
+        if (listingData != null)
+        {
+            CurrentDetailedPost = *listingData;
+            // this.Plugin.Log.Debug(Newtonsoft.Json.JsonConvert.SerializeObject(new PartyFinderDetailedListing(CurrentDetailedPost)));
+        }
+
+        this.PopulateListingHook.Original(self, listingData);
     }
 
     internal void ResetOverride(bool save = false) {

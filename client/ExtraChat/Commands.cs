@@ -1,5 +1,8 @@
 using ExtraChat.Util;
+using Lumina.Text;
+using Lumina.Text.Payloads;
 using Lumina.Text.ReadOnly;
+using Newtonsoft.Json;
 
 namespace ExtraChat;
 
@@ -121,6 +124,49 @@ internal class Commands : IDisposable {
         this.Plugin.SaveConfig();
         
         var message = this.Plugin.GameFunctions.ResolvePayloads(bytes);
+        var ross = new ReadOnlySeStringSpan(message);
+
+        foreach (var payload in ross)
+        {
+            if (payload is not { Type: ReadOnlySePayloadType.Macro, MacroCode: MacroCode.Fixed })
+                continue;
+
+            var enu = payload.GetEnumerator();
+
+            if (!enu.MoveNext() || !enu.Current.TryGetUInt(out var version) || version != 200)
+                continue;
+
+            if (!enu.MoveNext() || !enu.Current.TryGetUInt(out var fixedType) || fixedType != 11)
+                continue;
+
+            if (!enu.MoveNext() || !enu.Current.TryGetUInt(out var listingId))
+                continue;
+
+            if (listingId != this.Plugin.GameFunctions.CurrentDetailedPost.ListingId)
+                break;
+
+            var builder = SeStringBuilder.SharedPool.Get()
+                .Append(ross)
+                .BeginMacro(MacroCode.Link)
+                    .AppendUIntExpression(0x2A29AD9E)
+                    .AppendUIntExpression(0)
+                    .AppendUIntExpression(0)
+                    .AppendUIntExpression(0)
+                    .AppendStringExpression(
+                        JsonConvert.SerializeObject(
+                            new PartyFinderDetailedListing(this.Plugin.GameFunctions.CurrentDetailedPost)))
+                .EndMacro()
+                .PopLink();
+            var appended = builder.ToReadOnlySeString();
+            
+            // this.Plugin.Log.Debug(appended)
+
+            message = appended.Data.ToArray();
+            
+            SeStringBuilder.SharedPool.Return(builder);
+            break;
+        }
+        
         var ciphertext = SecretBox.Encrypt(info.SharedSecret, message);
         
         Task.Run(async () => await this.Plugin.Client.SendMessage(id, ciphertext));
